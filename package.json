@@ -1,0 +1,30 @@
+{
+  "name": "secsuite",
+  "version": "0.1.0",
+  "description": "Stack-aware, developer-first security scanning CLI. Detects your tech stack, runs the right open-source scanners, merges results into one clean report.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "bin": {
+    "secsuite": "dist/src/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "node --test dist/test/*.test.js",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "commander": "^14.0.0",
+    "execa": "^9.5.2",
+    "yaml": "^2.6.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.2"
+  }
+}
