@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { Command } from "commander";
-import { existsSync, statSync } from "node:fs";
+import { existsSync, statSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { findingsToSarif } from "./sarif-export.js";
 import { loadConfig, isIgnored } from "./config.js";
 import { detectStack } from "./detect.js";
 import { resolveScanners } from "./resolve.js";
@@ -15,10 +16,16 @@ import { dedupeFindings } from "./dedupe.js";
 import { printReport } from "./report.js";
 import { Finding, Severity } from "./schema.js";
 
+// dist/src/index.js -> ../../package.json is the package root at runtime.
+const VERSION = (
+  JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")) as { version: string }
+).version;
+
 const program = new Command();
 
 program
   .name("secsuite")
+  .version(VERSION)
   .description("Detect your stack, run the right security scanners, get one clean report.");
 
 program
@@ -27,6 +34,7 @@ program
   .argument("[path]", "directory to scan", ".")
   .option("--severity <level>", "minimum severity to report (default: medium, or config's severity_threshold)")
   .option("--json <file>", "write full findings JSON to <file>")
+  .option("--sarif <file>", "write merged findings as SARIF 2.1.0 to <file> (for GitHub Code Scanning)")
   .option("--config <file>", "path to secsuite.yaml")
   .option("--static-only", "static analysis only (this is the only mode in v0)")
   .action(async (targetArg: string, opts) => {
@@ -88,6 +96,17 @@ program
     const threshold = (opts.severity as Severity | undefined) ?? config.severityThreshold;
     const shown = printReport(findings, threshold, opts.json);
 
+    if (opts.sarif) {
+      try {
+        writeFileSync(opts.sarif, JSON.stringify(findingsToSarif(findings, VERSION), null, 2));
+        console.log(`SARIF written to ${opts.sarif}`);
+      } catch (err) {
+        console.error(`[secsuite] failed to write SARIF: ${(err as Error).message}`);
+        process.exitCode = 2;
+        return;
+      }
+    }
+
     process.exitCode = shown.length > 0 ? 1 : 0;
   });
 
@@ -98,6 +117,7 @@ program
   .option("--full", "active scan (sends attack payloads - authorized targets only)")
   .option("--severity <level>", "minimum severity to report (default: medium)")
   .option("--json <file>", "write full findings JSON to <file>")
+  .option("--sarif <file>", "write merged findings as SARIF 2.1.0 to <file> (for GitHub Code Scanning)")
   .action(async (target: string, opts) => {
     if (!/^https?:\/\//i.test(target)) {
       console.error(`[secsuite] dast target must be an http(s) URL, got: ${target}`);
@@ -122,6 +142,17 @@ program
     const findings = dedupeFindings(adaptZap(result.reportPath, target));
     const threshold = (opts.severity as Severity | undefined) ?? "medium";
     const shown = printReport(findings, threshold, opts.json);
+
+    if (opts.sarif) {
+      try {
+        writeFileSync(opts.sarif, JSON.stringify(findingsToSarif(findings, VERSION), null, 2));
+        console.log(`SARIF written to ${opts.sarif}`);
+      } catch (err) {
+        console.error(`[secsuite] failed to write SARIF: ${(err as Error).message}`);
+        process.exitCode = 2;
+        return;
+      }
+    }
 
     process.exitCode = shown.length > 0 ? 1 : 0;
   });

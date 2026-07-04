@@ -117,6 +117,7 @@ secsuite scan [path]        # path defaults to "."
 |---|---|---|
 | `--severity <level>` | minimum severity to report (`critical`\|`high`\|`medium`\|`low`\|`info`) | `medium` |
 | `--json <file>` | write full findings JSON (all severities) to `<file>` | - |
+| `--sarif <file>` | write merged findings as SARIF 2.1.0 to `<file>` | - |
 | `--config <file>` | path to `secsuite.yaml` | `<path>/secsuite.yaml` if present |
 | `--static-only` | reserved; the `scan` command only does static analysis | - |
 
@@ -157,6 +158,7 @@ authorized to test (staging or a prod mirror, not live production).
 | `--full` | active scan (attack payloads - authorized targets only) | passive baseline |
 | `--severity <level>` | minimum severity to report | `medium` |
 | `--json <file>` | write full findings JSON to `<file>` | - |
+| `--sarif <file>` | write merged findings as SARIF 2.1.0 to `<file>` | - |
 
 <a name="runtime--burp"></a>
 #### Runtime / Burp
@@ -266,6 +268,22 @@ dynamic lane against a deployed staging URL:
 Instead of passing `--severity` on the command line, you can commit a
 `secsuite.yaml` (below) with `severity_threshold: high` so the whole team - and
 CI - shares one policy, and the workflow is just `npx secsuite scan .`.
+
+### GitHub Code Scanning
+
+`--sarif` writes the merged report as SARIF 2.1.0, which GitHub renders as
+code-scanning alerts in the Security tab and as inline PR annotations:
+
+```yaml
+permissions:
+  security-events: write
+steps:
+  - run: npx secsuite@latest scan . --severity high --sarif secsuite.sarif
+  - uses: github/codeql-action/upload-sarif@v3
+    if: always()
+    with:
+      sarif_file: secsuite.sarif
+```
 
 ## How findings are normalized
 
