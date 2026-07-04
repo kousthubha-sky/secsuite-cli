@@ -4,6 +4,27 @@
   "description": "Stack-aware, developer-first security scanning CLI. Detects your tech stack, runs the right open-source scanners, merges results into one clean report.",
   "license": "MIT",
   "type": "module",
+  "keywords": [
+    "security",
+    "sast",
+    "sca",
+    "dast",
+    "devsecops",
+    "semgrep",
+    "trivy",
+    "gitleaks",
+    "zap",
+    "sarif",
+    "cli"
+  ],
+  "homepage": "https://github.com/kousthubha-sky/secsuite-cli#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kousthubha-sky/secsuite-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kousthubha-sky/secsuite-cli/issues"
+  },
   "engines": {
     "node": ">=22.5"
   },
@@ -11,7 +32,7 @@
     "secsuite": "dist/src/index.js"
   },
   "files": [
-    "dist"
+    "dist/src"
   ],
   "scripts": {
     "build": "tsc",

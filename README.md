@@ -56,14 +56,35 @@ additionally needs Docker running (it pulls and runs the official
 
 ## Install
 
+### Docker (bundles all the static scanners)
+
+The image ships `secsuite` with Semgrep, Trivy, and Gitleaks preinstalled, so
+you don't install anything else. Mount the repo you want to scan:
+
+```bash
+docker build -t secsuite-cli .
+docker run --rm -v "$PWD:/scan" secsuite-cli scan /scan
+```
+
+(The `dast` lane drives another Docker image, so running it *inside* this
+container means docker-in-docker; for DAST, prefer the npm/local install below.)
+
+### npm / npx / bun
+
+```bash
+npx secsuite scan .          # no install, one-off
+npm install -g secsuite      # global CLI
+bunx secsuite scan .         # bun works too - same published package
+```
+
+Static scanners are not bundled by the npm package - install the ones you want
+(see [Prerequisites](#prerequisites)); missing ones are skipped with a warning.
+
+### From source
+
 ```bash
 npm install
 npm run build
-```
-
-Or run directly without installing globally:
-
-```bash
 node dist/src/index.js scan <path>
 ```
 
