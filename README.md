@@ -119,6 +119,8 @@ secsuite scan [path]        # path defaults to "."
 | `--json <file>` | write full findings JSON (all severities) to `<file>` | - |
 | `--sarif <file>` | write merged findings as SARIF 2.1.0 to `<file>` | - |
 | `--config <file>` | path to `secsuite.yaml` | `<path>/secsuite.yaml` if present |
+| `--baseline <file>` | baseline file to suppress accepted findings | `<path>/.secsuite-baseline.json` if present |
+| `--no-baseline` | ignore any baseline file | - |
 | `--static-only` | reserved; the `scan` command only does static analysis | - |
 
 ### Dynamic scanning (pre-prod / runtime)
@@ -223,6 +225,26 @@ severity_threshold: medium
 ignore:
   paths: ["tests/", "**/migrations/**", "node_modules/", ".venv/"]
 ```
+
+## Baseline: adopting secsuite in an existing repo
+
+An existing repo's first scan usually reports old findings you cannot fix today,
+which would leave the CI gate permanently red.
+Accept the current state once:
+
+```bash
+secsuite baseline .        # scans and writes .secsuite-baseline.json
+git add .secsuite-baseline.json && git commit -m "Accept current security baseline"
+```
+
+From then on `secsuite scan` gates only on NEW findings; baselined ones are
+suppressed from the console report and the exit code, but stay in `--json` and
+`--sarif` output marked `"baselined": true`.
+Use `--no-baseline` to see everything, `--baseline <file>` to point elsewhere.
+
+Known limit: matching is by exact tool + rule + file + line, so a finding whose
+line number shifts reappears as new. Re-run `secsuite baseline` after big
+refactors if that gets noisy.
 
 ## Exit codes (CI-friendly)
 

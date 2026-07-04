@@ -5,6 +5,7 @@ import path from "node:path";
 import { findingsToSarif } from "./sarif-export.js";
 import { loadConfig } from "./config.js";
 import { runStaticPipeline } from "./pipeline.js";
+import { writeBaseline, loadBaselineIds, splitByBaseline, BASELINE_FILENAME } from "./baseline.js";
 import { adaptZap } from "./adapters/zap.js";
 import { runZapScan } from "./dast.js";
 import { dedupeFindings } from "./dedupe.js";
@@ -31,6 +32,8 @@ program
   .option("--json <file>", "write full findings JSON to <file>")
   .option("--sarif <file>", "write merged findings as SARIF 2.1.0 to <file> (for GitHub Code Scanning)")
   .option("--config <file>", "path to secsuite.yaml")
+  .option("--baseline <file>", `baseline file (default: <path>/${BASELINE_FILENAME} when present)`)
+  .option("--no-baseline", "ignore any baseline file")
   .option("--static-only", "static analysis only (this is the only mode in v0)")
   .action(async (targetArg: string, opts) => {
     const targetDir = path.resolve(targetArg);
@@ -64,12 +67,27 @@ program
       return;
     }
 
+    let baselineIds: Set<string> | undefined;
+    if (opts.baseline !== false) {
+      const baselinePath =
+        typeof opts.baseline === "string" ? path.resolve(opts.baseline) : path.join(targetDir, BASELINE_FILENAME);
+      baselineIds = loadBaselineIds(baselinePath);
+    }
+    const { fresh, baselined } = splitByBaseline(findings, baselineIds);
+
+    // JSON and SARIF always carry everything; only the gate and the console
+    // report are filtered to fresh findings.
+    const jsonFindings = [...fresh, ...baselined.map((f) => ({ ...f, baselined: true as const }))];
+
     const threshold = (opts.severity as Severity | undefined) ?? config.severityThreshold;
-    const shown = printReport(findings, threshold, opts.json);
+    const shown = printReport(fresh, threshold, opts.json, jsonFindings);
+    if (baselined.length > 0) {
+      console.log(`${baselined.length} baselined finding(s) suppressed (accepted in ${BASELINE_FILENAME}).`);
+    }
 
     if (opts.sarif) {
       try {
-        writeFileSync(opts.sarif, JSON.stringify(findingsToSarif(findings, VERSION), null, 2));
+        writeFileSync(opts.sarif, JSON.stringify(findingsToSarif(jsonFindings, VERSION), null, 2));
         console.log(`SARIF written to ${opts.sarif}`);
       } catch (err) {
         console.error(`[secsuite] failed to write SARIF: ${(err as Error).message}`);
@@ -79,6 +97,43 @@ program
     }
 
     process.exitCode = shown.length > 0 ? 1 : 0;
+  });
+
+program
+  .command("baseline")
+  .description("Accept all current findings; future scans gate only on NEW findings.")
+  .argument("[path]", "directory to scan", ".")
+  .option("--config <file>", "path to secsuite.yaml")
+  .action(async (targetArg: string, opts) => {
+    const targetDir = path.resolve(targetArg);
+    if (!existsSync(targetDir) || !statSync(targetDir).isDirectory()) {
+      console.error(`[secsuite] baseline target is not a directory: ${targetDir}`);
+      process.exitCode = 2;
+      return;
+    }
+
+    let config;
+    try {
+      config = loadConfig(opts.config, targetDir);
+    } catch (err) {
+      console.error(`[secsuite] ${(err as Error).message}`);
+      process.exitCode = 2;
+      return;
+    }
+
+    const { findings, anyRan } = await runStaticPipeline(targetDir, config);
+    if (!anyRan) {
+      console.error("[secsuite] every scanner failed to run - refusing to write an empty baseline.");
+      process.exitCode = 2;
+      return;
+    }
+
+    const baselinePath = path.join(targetDir, BASELINE_FILENAME);
+    writeBaseline(baselinePath, findings);
+    console.log(
+      `[secsuite] baseline written: ${findings.length} finding(s) accepted in ${baselinePath}.\n` +
+        `Commit this file; \`secsuite scan\` now reports only new findings. Line shifts re-surface a finding as new.`
+    );
   });
 
 program

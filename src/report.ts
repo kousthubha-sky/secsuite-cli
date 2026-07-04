@@ -6,7 +6,12 @@ export function filterByThreshold(findings: Finding[], threshold: Severity): Fin
   return findings.filter((f) => SEVERITY_ORDER.indexOf(f.severity) <= minRank);
 }
 
-export function printReport(findings: Finding[], threshold: Severity, jsonPath?: string): Finding[] {
+export function printReport(
+  findings: Finding[],
+  threshold: Severity,
+  jsonPath?: string,
+  jsonFindings: Finding[] = findings
+): Finding[] {
   const shown = filterByThreshold(findings, threshold);
 
   if (shown.length === 0) {
@@ -32,7 +37,7 @@ export function printReport(findings: Finding[], threshold: Severity, jsonPath?:
   console.log(`\nTotal: ${shown.length} finding(s) at or above "${threshold}" (${counts})`);
 
   if (jsonPath) {
-    writeFileSync(jsonPath, JSON.stringify(findings, null, 2));
+    writeFileSync(jsonPath, JSON.stringify(jsonFindings, null, 2));
     console.log(`Full findings (all severities) written to ${jsonPath}`);
   }
 
