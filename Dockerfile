@@ -34,6 +34,12 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package.json ./
 
+# Don't run as root. The scanner user needs a writable home for the tools'
+# caches (trivy's vuln DB, semgrep's rule cache).
+RUN useradd --create-home --shell /usr/sbin/nologin scanner
+USER scanner
+ENV HOME=/home/scanner
+
 # The CLI is the entrypoint; args after the image name are passed straight to it.
 # Scan a mounted repo:  docker run --rm -v "$PWD:/scan" secsuite-cli scan /scan
 ENTRYPOINT ["node", "/app/dist/src/index.js"]

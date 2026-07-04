@@ -37,8 +37,15 @@ runs:
 
     - name: Run secsuite
       shell: bash
+      # Inputs go through env, never interpolated into the script - `${{ }}`
+      # inside `run:` is the GitHub Actions script-injection pattern.
+      env:
+        SCAN_PATH: ${{ inputs.path }}
+        SEVERITY: ${{ inputs.severity }}
+        SARIF_FILE: ${{ inputs.sarif-file }}
+        USE_BASELINE: ${{ inputs.baseline }}
       run: |
-        ARGS="scan ${{ inputs.path }} --severity ${{ inputs.severity }}"
-        if [ -n "${{ inputs.sarif-file }}" ]; then ARGS="$ARGS --sarif ${{ inputs.sarif-file }}"; fi
-        if [ "${{ inputs.baseline }}" = "false" ]; then ARGS="$ARGS --no-baseline"; fi
+        ARGS="scan $SCAN_PATH --severity $SEVERITY"
+        if [ -n "$SARIF_FILE" ]; then ARGS="$ARGS --sarif $SARIF_FILE"; fi
+        if [ "$USE_BASELINE" = "false" ]; then ARGS="$ARGS --no-baseline"; fi
         npx secsuite@latest $ARGS
