@@ -6,13 +6,26 @@ export function filterByThreshold(findings: Finding[], threshold: Severity): Fin
   return findings.filter((f) => SEVERITY_ORDER.indexOf(f.severity) <= minRank);
 }
 
+// The raw scanner payload is by far the largest field and rarely needed;
+// agents opt back in with --raw.
+export function stripRaw(findings: Finding[]): object[] {
+  return findings.map(({ raw: _raw, ...rest }) => rest);
+}
+
 export function printReport(
   findings: Finding[],
   threshold: Severity,
   jsonPath?: string,
-  jsonFindings: Finding[] = findings
+  jsonFindings: object[] = findings
 ): Finding[] {
   const shown = filterByThreshold(findings, threshold);
+
+  // Machine mode: `--json -` streams one compact JSON payload to stdout and
+  // suppresses the human report - nothing else may touch stdout.
+  if (jsonPath === "-") {
+    console.log(JSON.stringify(jsonFindings));
+    return shown;
+  }
 
   if (shown.length === 0) {
     console.log(`No findings at or above severity "${threshold}".`);

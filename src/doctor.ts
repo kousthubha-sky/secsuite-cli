@@ -1,4 +1,5 @@
 import { execa } from "execa";
+import { detectStack } from "./detect.js";
 
 interface CheckResult {
   name: string;
@@ -71,4 +72,23 @@ export async function runDoctor(): Promise<void> {
     if (!c.ok && c.hint) console.log(`${" ".repeat(11)}install: ${c.hint}`);
   }
   console.log("\nMissing static scanners are skipped at scan time; docker is only needed for 'secsuite dast'.");
+}
+
+// AXI content-first: bare `secsuite` shows live state, not help text.
+export async function runStatus(version: string): Promise<void> {
+  const stack = detectStack(process.cwd());
+  const scanners = await Promise.all([
+    checkBinary("semgrep", ["--version"]),
+    checkBinary("trivy", ["--version"]),
+    checkBinary("gitleaks", ["--version"]),
+  ]);
+
+  console.log(`secsuite ${version} - stack-aware security scans`);
+  console.log(`detected here: ${stack.languages.length > 0 ? stack.languages.join(", ") : "no known manifests"}`);
+  console.log(`scanners: ${scanners.map((s) => `${s.name} ${s.ok ? "ok" : "MISSING"}`).join(", ")}`);
+  console.log("");
+  console.log("  secsuite scan .          static scan (SAST + SCA + secrets + IaC)");
+  console.log("  secsuite dast <url>      dynamic scan of a running app (needs Docker)");
+  console.log("  secsuite baseline .      accept current findings, gate on new only");
+  console.log("  secsuite doctor          full environment check with install hints");
 }

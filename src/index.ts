@@ -6,11 +6,11 @@ import { findingsToSarif } from "./sarif-export.js";
 import { loadConfig } from "./config.js";
 import { runStaticPipeline } from "./pipeline.js";
 import { writeBaseline, loadBaselineIds, splitByBaseline, BASELINE_FILENAME } from "./baseline.js";
-import { runDoctor } from "./doctor.js";
+import { runDoctor, runStatus } from "./doctor.js";
 import { adaptZap } from "./adapters/zap.js";
 import { runZapScan } from "./dast.js";
 import { dedupeFindings } from "./dedupe.js";
-import { printReport } from "./report.js";
+import { printReport, stripRaw } from "./report.js";
 import { Finding, Severity } from "./schema.js";
 
 // dist/src/index.js -> ../../package.json is the package root at runtime.
@@ -35,6 +35,7 @@ program
   .option("--config <file>", "path to secsuite.yaml")
   .option("--baseline <file>", `baseline file (default: <path>/${BASELINE_FILENAME} when present)`)
   .option("--no-baseline", "ignore any baseline file")
+  .option("--raw", "include each finding's raw scanner payload in --json output")
   .option("--static-only", "static analysis only (this is the only mode in v0)")
   .action(async (targetArg: string, opts) => {
     const targetDir = path.resolve(targetArg);
@@ -61,7 +62,7 @@ program
       return;
     }
 
-    const { findings, anyRan } = await runStaticPipeline(targetDir, config);
+    const { findings, anyRan, skipped } = await runStaticPipeline(targetDir, config);
     if (!anyRan) {
       console.error("[secsuite] every scanner failed to run - nothing was actually scanned.");
       process.exitCode = 2;
@@ -81,9 +82,24 @@ program
     const jsonFindings = [...fresh, ...baselined.map((f) => ({ ...f, baselined: true as const }))];
 
     const threshold = (opts.severity as Severity | undefined) ?? config.severityThreshold;
-    const shown = printReport(fresh, threshold, opts.json, jsonFindings);
-    if (baselined.length > 0) {
-      console.log(`${baselined.length} baselined finding(s) suppressed (accepted in ${BASELINE_FILENAME}).`);
+    const shown = printReport(
+      fresh,
+      threshold,
+      opts.json,
+      opts.raw ? jsonFindings : stripRaw(jsonFindings as Finding[])
+    );
+
+    // Human-mode extras; `--json -` keeps stdout machine-clean.
+    if (opts.json !== "-") {
+      if (baselined.length > 0) {
+        console.log(`${baselined.length} baselined finding(s) suppressed (accepted in ${BASELINE_FILENAME}).`);
+      }
+      if (shown.length > 0 && baselineIds === undefined && opts.baseline !== false) {
+        console.log(`help: secsuite baseline ${targetArg}  # accept these once, gate only on new findings`);
+      }
+      if (skipped.length > 0) {
+        console.log(`help: secsuite doctor  # skipped: ${skipped.join(", ")}`);
+      }
     }
 
     if (opts.sarif) {
@@ -152,6 +168,7 @@ program
   .option("--severity <level>", "minimum severity to report (default: medium)")
   .option("--json <file>", "write full findings JSON to <file>")
   .option("--sarif <file>", "write merged findings as SARIF 2.1.0 to <file> (for GitHub Code Scanning)")
+  .option("--raw", "include each finding's raw scanner payload in --json output")
   .action(async (target: string, opts) => {
     if (!/^https?:\/\//i.test(target)) {
       console.error(`[secsuite] dast target must be an http(s) URL, got: ${target}`);
@@ -175,7 +192,7 @@ program
 
     const findings = dedupeFindings(adaptZap(result.reportPath, target));
     const threshold = (opts.severity as Severity | undefined) ?? "medium";
-    const shown = printReport(findings, threshold, opts.json);
+    const shown = printReport(findings, threshold, opts.json, opts.raw ? findings : stripRaw(findings));
 
     if (opts.sarif) {
       try {
@@ -191,4 +208,18 @@ program
     process.exitCode = shown.length > 0 ? 1 : 0;
   });
 
-program.parseAsync(process.argv);
+// AXI content-first: bare `secsuite` shows live status instead of help text.
+program.action(async () => {
+  await runStatus(VERSION);
+});
+
+program.exitOverride();
+try {
+  await program.parseAsync(process.argv);
+} catch (err) {
+  // Commander throws for --help/--version (exitCode 0) and usage errors
+  // alike; map bad flags to 2 so agents never read "unknown option" as
+  // "findings found" (exit 1).
+  const code = (err as { exitCode?: number }).exitCode ?? 2;
+  process.exit(code === 0 ? 0 : 2);
+}

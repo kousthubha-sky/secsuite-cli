@@ -6,11 +6,12 @@ import { adaptTrivy } from "./adapters/trivy.js";
 import { adaptGitleaks } from "./adapters/gitleaks.js";
 import { dedupeFindings } from "./dedupe.js";
 import { isIgnored } from "./config.js";
-import { Config, Finding } from "./schema.js";
+import { Config, Finding, ToolName } from "./schema.js";
 
 export interface PipelineResult {
   findings: Finding[];
   anyRan: boolean;
+  skipped: ToolName[];
 }
 
 // The full static lane: detect -> resolve -> run -> adapt -> ignore-filter -> dedupe.
@@ -20,12 +21,15 @@ export async function runStaticPipeline(targetDir: string, config: Config): Prom
   if (stack.languages.length === 0) {
     console.warn("[secsuite] no known language manifests found; running stack-agnostic scanners only.");
   } else {
-    console.log(`[secsuite] detected: ${stack.languages.join(", ")}`);
+    // stderr, not stdout: stdout is reserved for the report (or `--json -`).
+    console.error(`[secsuite] detected: ${stack.languages.join(", ")}`);
   }
 
   const scanners = resolveScanners(stack);
   const runResults = await runScanners(scanners, targetDir, stack);
-  if (runResults.every((r) => !r.ran)) return { findings: [], anyRan: false };
+  if (runResults.every((r) => !r.ran)) {
+    return { findings: [], anyRan: false, skipped: runResults.map((r) => r.tool) };
+  }
 
   const adapters: Record<string, (sarifPath: string, targetDir: string) => Finding[]> = {
     semgrep: adaptSemgrep,
@@ -40,5 +44,9 @@ export async function runStaticPipeline(targetDir: string, config: Config): Prom
   }
 
   findings = findings.filter((f) => !isIgnored(f.location.file, config.ignore.paths));
-  return { findings: dedupeFindings(findings), anyRan: true };
+  return {
+    findings: dedupeFindings(findings),
+    anyRan: true,
+    skipped: runResults.filter((r) => !r.ran).map((r) => r.tool),
+  };
 }

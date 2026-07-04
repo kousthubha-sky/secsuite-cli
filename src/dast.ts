@@ -50,7 +50,8 @@ export async function runZapScan(
     script, "-t", target, "-J", reportName,
   ];
 
-  console.log(`[secsuite] starting ZAP (${script}) against ${target} - first run pulls the image, this can take a few minutes.`);
+  // stderr, not stdout: stdout is reserved for the report (or `--json -`).
+  console.error(`[secsuite] starting ZAP (${script}) against ${target} - first run pulls the image, this can take a few minutes.`);
   const res = await execa("docker", args, { reject: false });
 
   // ZAP exits nonzero when it finds issues (1) or fails (2/3); trust the report

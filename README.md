@@ -263,6 +263,19 @@ error - `secsuite` distinguishes "the scanner ran and found issues" from
 "the scanner failed to run" by checking whether it produced valid SARIF
 output.
 
+## For AI agents
+
+secsuite follows the AXI (Agent eXperience Interface, https://axi.md) guidelines:
+
+- Exit codes are the contract: `0` clean, `1` findings at/above threshold,
+  `2` execution or usage error - an unknown flag exits `2`, never `1`.
+- `--json -` prints one compact JSON payload to stdout and suppresses the
+  human report; all progress lines go to stderr, so stdout is always parseable.
+- JSON omits each finding's `raw` scanner payload unless `--raw` is passed.
+- Human output appends `help:` lines suggesting the logical next command.
+- Bare `secsuite` prints live status (detected stack, scanner availability),
+  not help text.
+
 ## CI and gating deployments
 
 Those exit codes are the whole point in CI: run `secsuite` on push/PR, and let
