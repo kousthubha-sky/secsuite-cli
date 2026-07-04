@@ -1,291 +1,53 @@
 # secsuite
 
-One command to run the right security checks for your stack, with one clean report.
+One command runs the right security scanners for your stack and merges everything into one clean, deduplicated report.
 
 [![npm version](https://img.shields.io/npm/v/secsuite)](https://www.npmjs.com/package/secsuite)
+[![docker](https://img.shields.io/docker/v/kousthubhaone/secsuite-cli?label=docker)](https://hub.docker.com/r/kousthubhaone/secsuite-cli)
 [![license: MIT](https://img.shields.io/npm/l/secsuite)](LICENSE)
-[![node](https://img.shields.io/node/v/secsuite)](package.json)
-
-`secsuite` detects your project's tech stack, runs the appropriate open-source
-security scanners, and merges their results into a single normalized,
-deduplicated report - readable in your terminal, and machine-readable as JSON
-for CI.
-
-This is a defensive DevSecOps orchestration layer: it contains no exploit or
-attack code of its own.
-It detects and shells out to existing, well-established open-source scanners
-and unifies their output.
-
-## Quick start
 
 ```bash
-# scan the current project (needs the scanners on PATH - see Prerequisites)
-npx secsuite scan .
-
-# dynamic scan of a running app (needs Docker running)
-npx secsuite dast https://staging.example.com
+npx secsuite scan .                    # scan your code, dependencies, secrets, IaC
+npx secsuite dast https://staging.app  # scan your running app (needs Docker)
 ```
 
-Or install it once: `npm i -g secsuite` (also works with `pnpm add -g secsuite`
-/ `bun add -g secsuite`), then call `secsuite` directly.
+secsuite detects your stack and shells out to [Semgrep](https://semgrep.dev/), [Trivy](https://trivy.dev/), [Gitleaks](https://github.com/gitleaks/gitleaks), and [OWASP ZAP](https://www.zaproxy.org/) - in parallel - then normalizes and deduplicates their findings into one report.
+It is a defensive DevSecOps orchestrator and contains no attack code of its own.
 
-## Application-protection lanes
+Works on JavaScript/TypeScript, Python, Java/Kotlin, C#/.NET, Go, Rust, PHP, and Ruby.
 
-`secsuite` maps onto the stages where you actually catch problems, from source
-code through to a running app:
+## Commands
 
-| Stage | Lane | What runs | Command |
-|---|---|---|---|
-| Build | Secure code review (SAST) | Semgrep | `secsuite scan` |
-| Test | Software composition (SCA) + secrets + IaC misconfig | Trivy, Gitleaks | `secsuite scan` |
-| Pre-prod | Automated OWASP pentest (DAST) | OWASP ZAP baseline | `secsuite dast <staging-url>` |
-| Runtime | Live dynamic scan (DAST) | OWASP ZAP full / Burp\* | `secsuite dast <url> --full` |
-
-\* Burp Suite is commercial and has no free headless API; see
-[Runtime / Burp](#runtime--burp) below. ZAP covers both the pre-prod and
-runtime lanes out of the box.
-
-**Static lanes** (`scan`) work on any of the major stacks: JavaScript/TypeScript,
-Python, Java/Kotlin (incl. Spring / J2EE), C#/.NET, Go, Rust, PHP, and Ruby.
-Trivy and Gitleaks are language-agnostic; Semgrep's `--config auto` picks rules
-per detected language. The static pipeline is: detect stack -> resolve scanners
--> run them -> normalize output -> deduplicate -> report.
-
-**Dynamic lane** (`dast`) scans a running app over HTTP instead of a directory.
-
-## Prerequisites
-
-`secsuite` does not bundle any scanner - it detects and shells out to
-binaries already on your `PATH`.
-Install the ones you want it to use; any that are missing are skipped with a
-warning, not a hard failure.
-
-| Tool | Purpose | License | Install |
-|---|---|---|---|
-| [Semgrep](https://semgrep.dev/) | SAST | LGPL | `pip install semgrep` (or `pipx install semgrep`) |
-| [Trivy](https://trivy.dev/) | SCA, IaC misconfig, secrets | Apache-2.0 | `winget install AquaSecurity.Trivy` / `brew install trivy` |
-| [Gitleaks](https://github.com/gitleaks/gitleaks) | Secret detection (incl. git history) | MIT | `winget install Gitleaks.Gitleaks` / `brew install gitleaks` |
-| [OWASP ZAP](https://www.zaproxy.org/) (via Docker) | DAST (`dast` command only) | Apache-2.0 | needs [Docker](https://www.docker.com/); image auto-pulls on first `dast` run |
-
-Node.js >= 22.5 is required to run `secsuite` itself. The `dast` command
-additionally needs Docker running (it pulls and runs the official
-`zaproxy/zap-stable` image); the static `scan` command does not.
-
-Run `secsuite doctor` to check what is installed and get per-platform install
-hints for anything missing.
+| Command | What it does |
+|---|---|
+| `secsuite scan [path]` | Static scan: code (SAST), dependencies (SCA), secrets, IaC misconfig |
+| `secsuite dast <url>` | Dynamic scan of a running app with OWASP ZAP |
+| `secsuite baseline [path]` | Accept current findings; future scans gate only on NEW ones |
+| `secsuite doctor` | Check what is installed, with per-platform install hints |
+| `secsuite` | Live status: detected stack + scanner availability |
 
 ## Install
 
-### Docker (bundles all the static scanners)
-
-The image ships `secsuite` with Semgrep, Trivy, and Gitleaks preinstalled, so
-you don't install anything else. Mount the repo you want to scan:
+**npm** (bring your own scanners - run `secsuite doctor` to see what is missing):
 
 ```bash
-docker build -t secsuite-cli .
-docker run --rm -v "$PWD:/scan" secsuite-cli scan /scan
+npm i -g secsuite     # or: pnpm add -g secsuite / bun add -g secsuite / npx secsuite
 ```
 
-(The `dast` lane drives another Docker image, so running it *inside* this
-container means docker-in-docker; for DAST, prefer the npm/local install below.)
-
-### npm / npx / bun
+**Docker** (all static scanners bundled, nothing else to install):
 
 ```bash
-npx secsuite scan .          # no install, one-off
-npm install -g secsuite      # global CLI
-bunx secsuite scan .         # bun works too - same published package
+docker run --rm -v "$PWD:/scan" kousthubhaone/secsuite-cli:0.2.0 scan /scan
 ```
 
-Static scanners are not bundled by the npm package - install the ones you want
-(see [Prerequisites](#prerequisites)); missing ones are skipped with a warning.
+Requirements: Node.js >= 22.5 for the npm install.
+The `dast` command needs Docker running; the static `scan` does not.
+Missing scanners are skipped with a warning, never a hard failure.
 
-### From source
+## Gate your CI
 
-```bash
-npm install
-npm run build
-node dist/src/index.js scan <path>
-```
-
-## Usage
-
-```bash
-secsuite scan [path]        # path defaults to "."
-```
-
-### Flags
-
-| Flag | Description | Default |
-|---|---|---|
-| `--severity <level>` | minimum severity to report (`critical`\|`high`\|`medium`\|`low`\|`info`) | `medium` |
-| `--json <file>` | write full findings JSON (all severities) to `<file>` | - |
-| `--sarif <file>` | write merged findings as SARIF 2.1.0 to `<file>` | - |
-| `--config <file>` | path to `secsuite.yaml` | `<path>/secsuite.yaml` if present |
-| `--baseline <file>` | baseline file to suppress accepted findings | `<path>/.secsuite-baseline.json` if present |
-| `--no-baseline` | ignore any baseline file | - |
-| `--static-only` | reserved; the `scan` command only does static analysis | - |
-
-### Dynamic scanning (pre-prod / runtime)
-
-```bash
-secsuite dast https://staging.example.com          # ZAP baseline (passive, safe)
-secsuite dast https://staging.example.com --full   # ZAP active scan (sends payloads)
-```
-
-Real output (baseline scan of a live site - the first run pulls the ZAP image):
-
-```
-[secsuite] starting ZAP (zap-baseline.py) against https://staging.example.com - first run pulls the image, this can take a few minutes.
-
-MEDIUM (3)
-  dast:
-    - Content Security Policy (CSP) Header Not Set (https://staging.example.com)
-    - Cross-Domain Misconfiguration (https://staging.example.com)
-    - Missing Anti-clickjacking Header (https://staging.example.com)
-
-Total: 3 finding(s) at or above "medium" (critical: 0, high: 0, medium: 3, low: 0, info: 0)
-```
-
-Because DAST findings have no source line, several alerts on one URL would
-share a location; secsuite keeps them as distinct findings (they are distinct
-issues), so a page with three missing headers reports three findings, not one.
-
-The `dast` command runs OWASP ZAP against a running app and folds its findings
-into the same normalized report (category `dast`, tool `zap`). The default
-**baseline** scan is passive - it spiders the app and applies passive rules, so
-it does not attack the target. `--full` runs an **active** scan that sends real
-attack payloads and mutates state, so only ever point it at a target you are
-authorized to test (staging or a prod mirror, not live production).
-
-| Flag | Description | Default |
-|---|---|---|
-| `--full` | active scan (attack payloads - authorized targets only) | passive baseline |
-| `--severity <level>` | minimum severity to report | `medium` |
-| `--json <file>` | write full findings JSON to `<file>` | - |
-| `--sarif <file>` | write merged findings as SARIF 2.1.0 to `<file>` | - |
-
-<a name="runtime--burp"></a>
-#### Runtime / Burp
-
-Burp Suite Professional has no headless automation API, and Burp Suite
-Enterprise/DAST (which does, via a GraphQL API) is a paid product. Rather than
-ship code that can't be run or tested without a commercial licence, `secsuite`
-uses ZAP for the runtime lane too - point `secsuite dast --full` at your running
-app. If your organisation already owns Burp Enterprise, its scan export drops
-into the same adapter interface as `adapters/zap.ts` (parse the tool's JSON into
-`Finding[]`); that adapter is the intended extension point.
-
-### Try it on the vulnerable fixture
-
-A small intentionally-vulnerable fixture ships in `fixtures/vulnerable/` -
-a SQL-injection / `eval()` sink, outdated npm and pip dependencies, a
-misconfigured `Dockerfile`, and a fake hardcoded AWS key.
-It exists purely to exercise the scanners; nothing in it is a real secret.
-
-```bash
-secsuite scan fixtures/vulnerable --severity high
-```
-
-Real output (Semgrep + Trivy + Gitleaks all installed):
-
-```
-[secsuite] detected: js, python
-
-CRITICAL (3)
-  sca:
-    - PyYAML: yaml.load() API could execute arbitrary code (requirements.txt:2)
-  secret:
-    - AWS Access Key ID (config.py:3)
-    - AWS Secret Access Key (config.py:4) [trivy, gitleaks]
-
-HIGH (5)
-  sast:
-    - By not specifying a USER, a program in the container may run as 'root'... (Dockerfile:7)
-    - AWS Access Key ID Value detected... (config.py:3)
-    - AWS Secret Access Key detected (config.py:4)
-  sca:
-    - python-flask: Denial of Service via crafted JSON file (requirements.txt:1)
-  iac:
-    - ':latest' tag used (Dockerfile:1)
-
-Total: 8 finding(s) at or above "high" (critical: 3, high: 5, medium: 0, low: 0, info: 0)
-```
-
-Note the hardcoded AWS secret on `config.py:4` is reported once with both
-`trivy` and `gitleaks` under its `sources` - cross-tool deduplication in action.
-
-## Configuration
-
-Optional, and entirely defaults-driven if absent. Drop a `secsuite.yaml` in
-your repo root:
-
-```yaml
-version: 1
-scan:
-  static: true
-severity_threshold: medium
-ignore:
-  paths: ["tests/", "**/migrations/**", "node_modules/", ".venv/"]
-```
-
-## Baseline: adopting secsuite in an existing repo
-
-An existing repo's first scan usually reports old findings you cannot fix today,
-which would leave the CI gate permanently red.
-Accept the current state once:
-
-```bash
-secsuite baseline .        # scans and writes .secsuite-baseline.json
-git add .secsuite-baseline.json && git commit -m "Accept current security baseline"
-```
-
-From then on `secsuite scan` gates only on NEW findings; baselined ones are
-suppressed from the console report and the exit code, but stay in `--json` and
-`--sarif` output marked `"baselined": true`.
-Use `--no-baseline` to see everything, `--baseline <file>` to point elsewhere.
-
-Known limit: matching is by exact tool + rule + file + line, so a finding whose
-line number shifts reappears as new. Re-run `secsuite baseline` after big
-refactors if that gets noisy.
-
-## Exit codes (CI-friendly)
-
-| Code | Meaning |
-|---|---|
-| `0` | no findings at or above `--severity` threshold |
-| `1` | findings at or above the threshold |
-| `2` | execution error (bad target path, bad config, or every scanner failed to run) |
-
-A tool exiting non-zero because it *found something* (which is how Semgrep,
-Trivy, and Gitleaks normally signal findings) is not treated as an execution
-error - `secsuite` distinguishes "the scanner ran and found issues" from
-"the scanner failed to run" by checking whether it produced valid SARIF
-output.
-
-## For AI agents
-
-secsuite follows the AXI (Agent eXperience Interface, https://axi.md) guidelines:
-
-- Exit codes are the contract: `0` clean, `1` findings at/above threshold,
-  `2` execution or usage error - an unknown flag exits `2`, never `1`.
-- `--json -` prints one compact JSON payload to stdout and suppresses the
-  human report; all progress lines go to stderr, so stdout is always parseable.
-- JSON omits each finding's `raw` scanner payload unless `--raw` is passed.
-- Human output appends `help:` lines suggesting the logical next command.
-- Bare `secsuite` prints live status (detected stack, scanner availability),
-  not help text.
-
-## CI and gating deployments
-
-Those exit codes are the whole point in CI: run `secsuite` on push/PR, and let
-a non-zero exit fail the job and block the deploy.
-
-`secsuite scan . --severity critical` exits `1` only when a critical finding
-exists, so it fails the pipeline exactly when you want to stop a release. Set
-the bar wherever you like (`--severity high` blocks on high and critical).
-
-The fastest setup is the bundled composite action (Ubuntu runners):
+`scan` exits `1` when it finds anything at or above `--severity`, so a failed job blocks the deploy.
+One step on GitHub Actions (Ubuntu runners):
 
 ```yaml
 jobs:
@@ -293,86 +55,115 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
+        with: { fetch-depth: 0 }        # full history so Gitleaks can scan past commits
       - uses: kousthubha-sky/secsuite-cli@v0.2.0
         with:
           severity: high
+          sarif-file: secsuite.sarif    # optional: for GitHub Code Scanning
   deploy:
-    needs: security # deploy only runs if the security gate passed
+    needs: security                     # deploy only runs if the gate passed
 ```
 
-A full copy-paste workflow (with SARIF upload and a manual-install variant for
-non-Ubuntu runners) lives in
-[`examples/ci/github-actions.yml`](examples/ci/github-actions.yml).
-
-Because `deploy` has `needs: security`, a finding at or above the threshold
-fails the security job and the deploy never runs. The same works for the
-dynamic lane against a deployed staging URL:
-`secsuite dast https://staging.example.com --severity high`.
-
-Instead of passing `--severity` on the command line, you can commit a
-`secsuite.yaml` (below) with `severity_threshold: high` so the whole team - and
-CI - shares one policy, and the workflow is just `npx secsuite scan .`.
-
-### GitHub Code Scanning
-
-`--sarif` writes the merged report as SARIF 2.1.0, which GitHub renders as
-code-scanning alerts in the Security tab and as inline PR annotations:
+Upload the SARIF and findings appear in your repo's Security tab and as inline PR annotations:
 
 ```yaml
-permissions:
-  security-events: write
-steps:
-  - run: npx secsuite@latest scan . --severity high --sarif secsuite.sarif
-  - uses: github/codeql-action/upload-sarif@v3
-    if: always()
-    with:
-      sarif_file: secsuite.sarif
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with: { sarif_file: secsuite.sarif }
 ```
 
-## How findings are normalized
+(Needs `permissions: security-events: write` on the job.)
+A full copy-paste workflow, including a manual-install variant for non-Ubuntu runners, lives in [`examples/ci/github-actions.yml`](examples/ci/github-actions.yml).
 
-Every scanner's SARIF output is mapped into one shape:
+## Adopting in an existing repo
 
-```ts
-interface Finding {
-  id: string;            // stable hash of tool + ruleId + file + startLine
-  tool: string;           // "semgrep" | "trivy" | "gitleaks" | "zap"
-  category: string;       // "sast" | "sca" | "secret" | "iac" | "misconfig" | "dast"
-  ruleId: string;
-  severity: string;       // "critical" | "high" | "medium" | "low" | "info"
-  title: string;
-  description: string;
-  location: { file: string; startLine?: number; endLine?: number };
-  remediation?: string;
-  references?: string[];
-  sources: string[];      // which tools reported this finding
-  raw: unknown;            // the original tool finding, untouched
-}
+Your first scan will report old findings you cannot fix today.
+Accept them once instead of turning the gate off:
+
+```bash
+secsuite baseline .
+git add .secsuite-baseline.json && git commit -m "Accept current security baseline"
 ```
 
-Two findings are treated as duplicates only when **different tools** report the
-same file, start line, and normalized category - for example Trivy and Gitleaks
-both flagging one hardcoded key. When that happens the finding is kept once with
-every reporting tool listed in `sources`. Multiple findings from the *same* tool
-at one location are kept separate, since they are distinct issues (several CVEs
-on one dependency line, or several ZAP alerts on one URL).
+From then on `scan` gates only on NEW findings.
+Baselined ones stay visible in `--json`/`--sarif` output, marked `"baselined": true`.
+Known limit: matching is exact (tool + rule + file + line), so a finding whose line shifts reappears as new - re-run `secsuite baseline` after big refactors.
 
-## Project structure
+## Dynamic scanning (DAST)
+
+```bash
+secsuite dast https://staging.example.com          # passive baseline scan (safe)
+secsuite dast https://staging.example.com --full   # active scan - sends real attack payloads
+```
+
+The default baseline scan spiders the app and applies passive rules only.
+`--full` attacks the target and mutates state: only point it at targets you are authorized to test, never live production.
+Burp Suite has no free headless API; ZAP covers this lane, and `src/adapters/zap.ts` is the extension point if your organisation owns Burp Enterprise.
+
+## Flags
+
+`scan`:
+
+| Flag | Description | Default |
+|---|---|---|
+| `--severity <level>` | minimum severity that reports/gates (`critical`\|`high`\|`medium`\|`low`\|`info`) | `medium` |
+| `--json <file>` | write all findings as JSON (`-` = compact JSON to stdout) | - |
+| `--sarif <file>` | write merged findings as SARIF 2.1.0 | - |
+| `--baseline <file>` / `--no-baseline` | override / ignore the baseline file | auto-detect |
+| `--raw` | include raw scanner payloads in JSON output | off |
+| `--config <file>` | path to `secsuite.yaml` | `<path>/secsuite.yaml` |
+
+`dast` supports `--full`, `--severity`, `--json`, `--sarif`, and `--raw`.
+
+## Configuration (optional)
+
+Commit a `secsuite.yaml` so your team and CI share one policy:
+
+```yaml
+severity_threshold: high
+ignore:
+  paths: ["tests/", "vendor/", "**/generated/**"]
+```
+
+## Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | no findings at or above the threshold |
+| `1` | findings at or above the threshold |
+| `2` | execution or usage error (bad path, bad config, unknown flag, every scanner failed) |
+
+A scanner exiting non-zero because it found something is not an error - secsuite trusts the scanner's report file over its exit code.
+
+## For AI agents
+
+secsuite follows the [AXI](https://axi.md) agent-experience guidelines:
+
+- Exit codes are the contract; an unknown flag exits `2`, never `1`.
+- `--json -` prints one compact JSON payload to stdout; all progress goes to stderr.
+- JSON omits raw scanner payloads unless `--raw` is passed.
+- Human output appends `help:` lines suggesting the next command.
+- Bare `secsuite` prints live status, not help text.
+
+## How it works
 
 ```
-src/
-  index.ts        CLI entry (commander)
-  detect.ts        stack detection from manifest files (polyglot)
-  resolve.ts        stack -> scanner list
-  run.ts             static scanner spawn wrappers, PATH checks, SARIF collection
-  dast.ts            OWASP ZAP runner (Docker) for the dynamic lane
-  adapters/          per-tool output -> Finding[] (sarif.ts shared; zap.ts parses ZAP JSON)
-  config.ts          secsuite.yaml loading + ignore-path filtering
-  dedupe.ts          cross-tool deduplication
-  report.ts          console + JSON reporting
-  schema.ts          Finding + Config types
-fixtures/vulnerable/  intentionally-vulnerable sample repo
-test/                 node:test suite (checked-in SARIF/ZAP fixtures + dedupe/detect)
-Dockerfile            bundles secsuite + Semgrep/Trivy/Gitleaks
+detect stack -> run scanners in parallel -> normalize to one schema -> dedupe -> report
 ```
+
+Every finding becomes `{ tool, category, ruleId, severity, title, location, sources, ... }` regardless of which scanner produced it.
+Two findings merge only when **different** tools report the same file, line, and category (e.g. Trivy and Gitleaks both flagging one hardcoded key) - the survivor lists both in `sources`.
+Multiple findings from the same tool at one location stay separate, because they are distinct issues.
+
+## Try it on the built-in vulnerable fixture
+
+```bash
+secsuite scan fixtures/vulnerable --severity high
+```
+
+An intentionally-vulnerable sample (SQL injection, outdated deps, fake AWS keys, bad Dockerfile) ships in [`fixtures/vulnerable/`](fixtures/vulnerable/) to exercise the scanners.
+Nothing in it is a real secret.
+
+## License
+
+[MIT](LICENSE)
