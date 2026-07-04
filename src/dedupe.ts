@@ -17,14 +17,31 @@ export function dedupeFindings(findings: Finding[]): Finding[] {
   for (const f of findings) {
     const key = dedupeKey(f);
     const existing = byKey.get(key);
+
     if (!existing) {
       byKey.set(key, { ...f, sources: [...f.sources] });
       continue;
     }
-    existing.sources = Array.from(new Set([...existing.sources, ...f.sources]));
-    if (severityRank(f.severity) < severityRank(existing.severity)) {
-      existing.severity = f.severity;
+
+    // Merge only when a DIFFERENT tool reports the same location+category -
+    // that is a genuine cross-tool duplicate (e.g. trivy and gitleaks both
+    // flagging one hardcoded key). Two findings from the SAME tool at one
+    // location are distinct issues - several CVEs on one dependency line, or
+    // several ZAP alerts on one URL - so they must be kept separate.
+    if (!existing.sources.includes(f.tool)) {
+      existing.sources = Array.from(new Set([...existing.sources, ...f.sources]));
+      if (severityRank(f.severity) < severityRank(existing.severity)) {
+        existing.severity = f.severity;
+      }
+      continue;
     }
+
+    // Same tool, same location+category: re-key with ruleId so the distinct
+    // finding survives instead of being collapsed. An identical
+    // tool+rule+location finding (a true duplicate) still folds into one.
+    // ponytail: a same-tool finding won't also cross-tool-merge here; add that
+    // if a tool ever re-reports another tool's exact location+category+rule.
+    byKey.set(`${key}:${f.ruleId}`, { ...f, sources: [...f.sources] });
   }
 
   return Array.from(byKey.values());

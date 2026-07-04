@@ -1,0 +1,65 @@
+{
+  "@version": "2.15.0",
+  "@generated": "Fri, 3 Jul 2026 10:00:00",
+  "site": [
+    {
+      "@name": "https://staging.example.com",
+      "@host": "staging.example.com",
+      "@port": "443",
+      "@ssl": "true",
+      "alerts": [
+        {
+          "pluginid": "40018",
+          "alertRef": "40018-1",
+          "alert": "SQL Injection",
+          "name": "SQL Injection",
+          "riskcode": "3",
+          "confidence": "2",
+          "riskdesc": "High (Medium)",
+          "desc": "<p>SQL injection may be possible.</p>",
+          "instances": [
+            { "uri": "https://staging.example.com/search?q=1", "method": "GET", "param": "q" }
+          ],
+          "count": "1",
+          "solution": "<p>Use parameterized queries.</p>",
+          "reference": "<p>https://owasp.org/</p>",
+          "cweid": "89",
+          "wascid": "19"
+        },
+        {
+          "pluginid": "10038",
+          "alertRef": "10038-1",
+          "alert": "Content Security Policy (CSP) Header Not Set",
+          "name": "Content Security Policy (CSP) Header Not Set",
+          "riskcode": "2",
+          "confidence": "3",
+          "riskdesc": "Medium (High)",
+          "desc": "<p>CSP header is not set.</p>",
+          "instances": [
+            { "uri": "https://staging.example.com/", "method": "GET" }
+          ],
+          "count": "1",
+          "solution": "<p>Set a Content-Security-Policy header.</p>",
+          "cweid": "693",
+          "wascid": "15"
+        },
+        {
+          "pluginid": "10096",
+          "alertRef": "10096-1",
+          "alert": "Timestamp Disclosure",
+          "name": "Timestamp Disclosure - Unix",
+          "riskcode": "0",
+          "confidence": "1",
+          "riskdesc": "Informational (Low)",
+          "desc": "<p>A timestamp was disclosed.</p>",
+          "instances": [
+            { "uri": "https://staging.example.com/app.js", "method": "GET" }
+          ],
+          "count": "1",
+          "cweid": "-1",
+          "wascid": "13"
+        }
+      ]
+    }
+  ]
+}

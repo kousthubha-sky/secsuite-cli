@@ -6,9 +6,9 @@ export function severityRank(s: Severity): number {
   return SEVERITY_ORDER.indexOf(s);
 }
 
-export type Category = "sast" | "sca" | "secret" | "iac" | "misconfig";
+export type Category = "sast" | "sca" | "secret" | "iac" | "misconfig" | "dast";
 
-export type ToolName = "semgrep" | "trivy" | "gitleaks";
+export type ToolName = "semgrep" | "trivy" | "gitleaks" | "zap";
 
 export interface Finding {
   id: string;

@@ -34,6 +34,9 @@ function buildCommand(tool: ToolName, targetDir: string, sarifPath: string, stac
       if (!stack.isGit) args.push("--no-git");
       return { command: "gitleaks", args };
     }
+    default:
+      // zap is a DAST tool driven by src/dast.ts, never the static runner.
+      throw new Error(`buildCommand: ${tool} is not a static scanner`);
   }
 }
 

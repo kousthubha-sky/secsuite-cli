@@ -9,6 +9,8 @@ import { runScanners } from "./run.js";
 import { adaptSemgrep } from "./adapters/semgrep.js";
 import { adaptTrivy } from "./adapters/trivy.js";
 import { adaptGitleaks } from "./adapters/gitleaks.js";
+import { adaptZap } from "./adapters/zap.js";
+import { runZapScan } from "./dast.js";
 import { dedupeFindings } from "./dedupe.js";
 import { printReport } from "./report.js";
 import { Finding, Severity } from "./schema.js";
@@ -53,8 +55,10 @@ program
     }
 
     const stack = detectStack(targetDir);
-    if (!stack.js && !stack.py) {
-      console.warn("[secsuite] no known JS/TS or Python manifests found; running stack-agnostic scanners only.");
+    if (stack.languages.length === 0) {
+      console.warn("[secsuite] no known language manifests found; running stack-agnostic scanners only.");
+    } else {
+      console.log(`[secsuite] detected: ${stack.languages.join(", ")}`);
     }
 
     const scanners = resolveScanners(stack);
@@ -82,6 +86,41 @@ program
     findings = dedupeFindings(findings);
 
     const threshold = (opts.severity as Severity | undefined) ?? config.severityThreshold;
+    const shown = printReport(findings, threshold, opts.json);
+
+    process.exitCode = shown.length > 0 ? 1 : 0;
+  });
+
+program
+  .command("dast")
+  .description("Dynamic scan of a running app URL with OWASP ZAP (pre-prod / runtime lane).")
+  .argument("<url>", "target URL, e.g. https://staging.example.com")
+  .option("--full", "active scan (sends attack payloads - authorized targets only)")
+  .option("--severity <level>", "minimum severity to report (default: medium)")
+  .option("--json <file>", "write full findings JSON to <file>")
+  .action(async (target: string, opts) => {
+    if (!/^https?:\/\//i.test(target)) {
+      console.error(`[secsuite] dast target must be an http(s) URL, got: ${target}`);
+      process.exitCode = 2;
+      return;
+    }
+
+    const validSeverities: Severity[] = ["critical", "high", "medium", "low", "info"];
+    if (opts.severity && !validSeverities.includes(opts.severity)) {
+      console.error(`[secsuite] invalid --severity "${opts.severity}", expected one of ${validSeverities.join(", ")}`);
+      process.exitCode = 2;
+      return;
+    }
+
+    const result = await runZapScan(target, { full: opts.full });
+    if (!result.ran || !result.reportPath) {
+      console.error("[secsuite] DAST scan did not run - nothing was scanned.");
+      process.exitCode = 2;
+      return;
+    }
+
+    const findings = dedupeFindings(adaptZap(result.reportPath, target));
+    const threshold = (opts.severity as Severity | undefined) ?? "medium";
     const shown = printReport(findings, threshold, opts.json);
 
     process.exitCode = shown.length > 0 ? 1 : 0;

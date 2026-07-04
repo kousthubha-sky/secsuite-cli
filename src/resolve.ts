@@ -5,7 +5,7 @@ import { StackInfo } from "./detect.js";
 // stack-agnostic (SCA/secrets/misconfig apply to any repo), so they always run.
 export function resolveScanners(stack: StackInfo): ToolName[] {
   const scanners: ToolName[] = [];
-  if (stack.js || stack.py) scanners.push("semgrep");
+  if (stack.languages.length > 0) scanners.push("semgrep");
   scanners.push("trivy", "gitleaks");
   return scanners;
 }
