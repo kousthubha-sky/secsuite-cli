@@ -30,7 +30,7 @@ jobs:
           sarif-file: secsuite.sarif
 
       # Findings land in the repo's Security tab and as inline PR annotations.
-      - uses: github/codeql-action/upload-sarif@v3
+      - uses: github/codeql-action/upload-sarif@v4
         if: always() # upload even when the gate fails
         with:
           sarif_file: secsuite.sarif

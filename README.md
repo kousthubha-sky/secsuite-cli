@@ -67,7 +67,7 @@ jobs:
 Upload the SARIF and findings appear in your repo's Security tab and as inline PR annotations:
 
 ```yaml
-      - uses: github/codeql-action/upload-sarif@v3
+      - uses: github/codeql-action/upload-sarif@v4
         if: always()
         with: { sarif_file: secsuite.sarif }
 ```

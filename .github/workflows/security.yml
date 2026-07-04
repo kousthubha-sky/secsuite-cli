@@ -22,7 +22,7 @@ jobs:
           severity: high
           sarif-file: secsuite.sarif
 
-      - uses: github/codeql-action/upload-sarif@v3
+      - uses: github/codeql-action/upload-sarif@v4
         if: always() # findings land in the Security tab even when the gate fails
         with:
           sarif_file: secsuite.sarif
