@@ -236,6 +236,37 @@ error - `secsuite` distinguishes "the scanner ran and found issues" from
 "the scanner failed to run" by checking whether it produced valid SARIF
 output.
 
+## CI and gating deployments
+
+Those exit codes are the whole point in CI: run `secsuite` on push/PR, and let
+a non-zero exit fail the job and block the deploy.
+
+`secsuite scan . --severity critical` exits `1` only when a critical finding
+exists, so it fails the pipeline exactly when you want to stop a release. Set
+the bar wherever you like (`--severity high` blocks on high and critical).
+
+A copy-paste GitHub Actions workflow lives in
+[`examples/ci/github-actions.yml`](examples/ci/github-actions.yml). The key idea:
+
+```yaml
+jobs:
+  security:
+    steps:
+      - run: npx secsuite@latest scan . --severity high   # exit 1 fails the job
+  deploy:
+    needs: security   # deploy only runs if the security gate passed
+    ...
+```
+
+Because `deploy` has `needs: security`, a finding at or above the threshold
+fails the security job and the deploy never runs. The same works for the
+dynamic lane against a deployed staging URL:
+`secsuite dast https://staging.example.com --severity high`.
+
+Instead of passing `--severity` on the command line, you can commit a
+`secsuite.yaml` (below) with `severity_threshold: high` so the whole team - and
+CI - shares one policy, and the workflow is just `npx secsuite scan .`.
+
 ## How findings are normalized
 
 Every scanner's SARIF output is mapped into one shape:

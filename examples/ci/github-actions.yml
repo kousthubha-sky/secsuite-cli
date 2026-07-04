@@ -1,0 +1,66 @@
+# Example: run secsuite on every push / PR and block deploys on findings.
+# Copy this into your repo as .github/workflows/security.yml and adjust.
+#
+# How the gate works: `secsuite scan` exits 1 when it finds anything at or above
+# the --severity threshold, which fails the job. Because the `deploy` job below
+# has `needs: security`, a failed security job means deploy never runs - so a
+# critical finding stops the release.
+
+name: security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full git history so Gitleaks can scan past commits
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Install the scanners you want secsuite to run. Drop any you don't need -
+      # secsuite warns-and-skips whatever is missing rather than failing.
+      - name: Install scanners
+        run: |
+          pipx install semgrep
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
+          curl -sfL https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz | tar -xz -C /tmp gitleaks
+          sudo mv /tmp/gitleaks /usr/local/bin/
+
+      # One run: the console output fails the job on high+ (the gate), while
+      # --json writes EVERY finding (all severities) for the artifact below.
+      - name: secsuite security gate
+        run: npx secsuite@latest scan . --severity high --json secsuite-findings.json
+
+      - name: Upload full findings report
+        if: always() # keep the report even when the gate fails
+        uses: actions/upload-artifact@v4
+        with:
+          name: secsuite-findings
+          path: secsuite-findings.json
+
+  deploy:
+    needs: security # only runs if the security gate passed
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Deploying - only reached when secsuite found nothing at or above the gate."
+
+# ---------------------------------------------------------------------------
+# Cleaner alternative: skip the per-scanner installs by using the bundled Docker
+# image (once you've pushed it to a registry like GHCR):
+#
+#   - name: secsuite security gate
+#     run: docker run --rm -v "$PWD:/scan" ghcr.io/kousthubha-sky/secsuite-cli:latest scan /scan --severity high
+#
+# The dynamic (dast) lane can gate a deployed staging URL the same way:
+#
+#   - run: npx secsuite@latest dast https://staging.example.com --severity high
+# ---------------------------------------------------------------------------
