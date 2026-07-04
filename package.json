@@ -1,6 +1,6 @@
 {
   "name": "secsuite",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Stack-aware, developer-first security scanning CLI. Detects your tech stack, runs the right open-source scanners, merges results into one clean report.",
   "license": "MIT",
   "type": "module",
