@@ -46,42 +46,52 @@ export async function runScanners(
   stack: StackInfo
 ): Promise<ToolRunResult[]> {
   const tmpDir = mkdtempSync(path.join(tmpdir(), "secsuite-"));
-  const results: ToolRunResult[] = [];
 
-  for (const tool of scanners) {
-    const available = await isAvailable(tool);
-    if (!available) {
-      console.warn(`[secsuite] ${tool} not found on PATH, skipping.`);
-      results.push({ tool, ran: false, error: "not found on PATH" });
-      continue;
-    }
+  // Scanners are independent processes; run them concurrently. Promise.all
+  // preserves input order. Each task buffers its own log lines and flushes
+  // them on completion so concurrent output never interleaves mid-message.
+  return Promise.all(
+    scanners.map(async (tool): Promise<ToolRunResult> => {
+      const log: string[] = [];
+      const result = await runOne(tool, targetDir, stack, tmpDir, log);
+      for (const line of log) console.warn(line);
+      return result;
+    })
+  );
+}
 
-    const sarifPath = path.join(tmpDir, `${tool}.sarif`);
-    const { command, args } = buildCommand(tool, targetDir, sarifPath, stack);
-    // Semgrep is a Python tool that writes SARIF using the OS default
-    // codepage unless told otherwise; on Windows that's cp1252, which
-    // crashes on non-Latin-1 characters that show up in community rule
-    // metadata (e.g. emoji). Force UTF-8 so the SARIF write can't fail.
-    const env = tool === "semgrep" ? { ...process.env, PYTHONUTF8: "1" } : undefined;
-    const res = await execa(command, args, { reject: false, cwd: targetDir, env });
-
-    // These tools use a nonzero exit code to mean "findings were found", not
-    // "the tool crashed" - trust the SARIF file over the exit code.
-    if (existsSync(sarifPath)) {
-      try {
-        JSON.parse(readFileSync(sarifPath, "utf8"));
-        results.push({ tool, ran: true, sarifPath });
-        continue;
-      } catch {
-        // unparseable output falls through to the execution-error path below
-      }
-    }
-
-    console.warn(
-      `[secsuite] ${tool} failed to run (exit ${res.exitCode}). ${(res.stderr ?? "").slice(0, 300)}`
-    );
-    results.push({ tool, ran: false, error: `execution error (exit ${res.exitCode})` });
+async function runOne(
+  tool: ToolName,
+  targetDir: string,
+  stack: StackInfo,
+  tmpDir: string,
+  log: string[]
+): Promise<ToolRunResult> {
+  if (!(await isAvailable(tool))) {
+    log.push(`[secsuite] ${tool} not found on PATH, skipping.`);
+    return { tool, ran: false, error: "not found on PATH" };
   }
 
-  return results;
+  const sarifPath = path.join(tmpDir, `${tool}.sarif`);
+  const { command, args } = buildCommand(tool, targetDir, sarifPath, stack);
+  // Semgrep is a Python tool that writes SARIF using the OS default
+  // codepage unless told otherwise; on Windows that's cp1252, which
+  // crashes on non-Latin-1 characters that show up in community rule
+  // metadata (e.g. emoji). Force UTF-8 so the SARIF write can't fail.
+  const env = tool === "semgrep" ? { ...process.env, PYTHONUTF8: "1" } : undefined;
+  const res = await execa(command, args, { reject: false, cwd: targetDir, env });
+
+  // These tools use a nonzero exit code to mean "findings were found", not
+  // "the tool crashed" - trust the SARIF file over the exit code.
+  if (existsSync(sarifPath)) {
+    try {
+      JSON.parse(readFileSync(sarifPath, "utf8"));
+      return { tool, ran: true, sarifPath };
+    } catch {
+      // unparseable output falls through to the execution-error path below
+    }
+  }
+
+  log.push(`[secsuite] ${tool} failed to run (exit ${res.exitCode}). ${(res.stderr ?? "").slice(0, 300)}`);
+  return { tool, ran: false, error: `execution error (exit ${res.exitCode})` };
 }
