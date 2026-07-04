@@ -2,6 +2,10 @@
 
 One command to run the right security checks for your stack, with one clean report.
 
+[![npm version](https://img.shields.io/npm/v/secsuite)](https://www.npmjs.com/package/secsuite)
+[![license: MIT](https://img.shields.io/npm/l/secsuite)](LICENSE)
+[![node](https://img.shields.io/node/v/secsuite)](package.json)
+
 `secsuite` detects your project's tech stack, runs the appropriate open-source
 security scanners, and merges their results into a single normalized,
 deduplicated report - readable in your terminal, and machine-readable as JSON
@@ -11,6 +15,19 @@ This is a defensive DevSecOps orchestration layer: it contains no exploit or
 attack code of its own.
 It detects and shells out to existing, well-established open-source scanners
 and unifies their output.
+
+## Quick start
+
+```bash
+# scan the current project (needs the scanners on PATH - see Prerequisites)
+npx secsuite scan .
+
+# dynamic scan of a running app (needs Docker running)
+npx secsuite dast https://staging.example.com
+```
+
+Or install it once: `npm i -g secsuite` (also works with `pnpm add -g secsuite`
+/ `bun add -g secsuite`), then call `secsuite` directly.
 
 ## Application-protection lanes
 
@@ -110,6 +127,24 @@ secsuite dast https://staging.example.com          # ZAP baseline (passive, safe
 secsuite dast https://staging.example.com --full   # ZAP active scan (sends payloads)
 ```
 
+Real output (baseline scan of a live site - the first run pulls the ZAP image):
+
+```
+[secsuite] starting ZAP (zap-baseline.py) against https://staging.example.com - first run pulls the image, this can take a few minutes.
+
+MEDIUM (3)
+  dast:
+    - Content Security Policy (CSP) Header Not Set (https://staging.example.com)
+    - Cross-Domain Misconfiguration (https://staging.example.com)
+    - Missing Anti-clickjacking Header (https://staging.example.com)
+
+Total: 3 finding(s) at or above "medium" (critical: 0, high: 0, medium: 3, low: 0, info: 0)
+```
+
+Because DAST findings have no source line, several alerts on one URL would
+share a location; secsuite keeps them as distinct findings (they are distinct
+issues), so a page with three missing headers reports three findings, not one.
+
 The `dast` command runs OWASP ZAP against a running app and folds its findings
 into the same normalized report (category `dast`, tool `zap`). The default
 **baseline** scan is passive - it spiders the app and applies passive rules, so
@@ -142,12 +177,36 @@ misconfigured `Dockerfile`, and a fake hardcoded AWS key.
 It exists purely to exercise the scanners; nothing in it is a real secret.
 
 ```bash
-secsuite scan fixtures/vulnerable --json out.json
+secsuite scan fixtures/vulnerable --severity high
 ```
 
-You should see grouped findings across SAST, SCA, secrets, and misconfig
-categories, with the hardcoded key reported once with both `trivy` and
-`gitleaks` listed under its `sources` (deduplication in action).
+Real output (Semgrep + Trivy + Gitleaks all installed):
+
+```
+[secsuite] detected: js, python
+
+CRITICAL (3)
+  sca:
+    - PyYAML: yaml.load() API could execute arbitrary code (requirements.txt:2)
+  secret:
+    - AWS Access Key ID (config.py:3)
+    - AWS Secret Access Key (config.py:4) [trivy, gitleaks]
+
+HIGH (5)
+  sast:
+    - By not specifying a USER, a program in the container may run as 'root'... (Dockerfile:7)
+    - AWS Access Key ID Value detected... (config.py:3)
+    - AWS Secret Access Key detected (config.py:4)
+  sca:
+    - python-flask: Denial of Service via crafted JSON file (requirements.txt:1)
+  iac:
+    - ':latest' tag used (Dockerfile:1)
+
+Total: 8 finding(s) at or above "high" (critical: 3, high: 5, medium: 0, low: 0, info: 0)
+```
+
+Note the hardcoded AWS secret on `config.py:4` is reported once with both
+`trivy` and `gitleaks` under its `sources` - cross-tool deduplication in action.
 
 ## Configuration
 
@@ -216,9 +275,10 @@ src/
   dast.ts            OWASP ZAP runner (Docker) for the dynamic lane
   adapters/          per-tool output -> Finding[] (sarif.ts shared; zap.ts parses ZAP JSON)
   config.ts          secsuite.yaml loading + ignore-path filtering
-  dedupe.ts          deduplication
+  dedupe.ts          cross-tool deduplication
   report.ts          console + JSON reporting
   schema.ts          Finding + Config types
 fixtures/vulnerable/  intentionally-vulnerable sample repo
-test/                 node:test suite over checked-in sample SARIF files
+test/                 node:test suite (checked-in SARIF/ZAP fixtures + dedupe/detect)
+Dockerfile            bundles secsuite + Semgrep/Trivy/Gitleaks
 ```
