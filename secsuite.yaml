@@ -1,0 +1,11 @@
+version: 1
+scan:
+  static: true
+severity_threshold: high
+ignore:
+  paths:
+    # Intentionally-vulnerable demo fixture - excluded from the gate on
+    # purpose; it exists to exercise the scanners (see README).
+    - fixtures/vulnerable/
+    - node_modules/
+    - dist/

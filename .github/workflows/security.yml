@@ -1,0 +1,28 @@
+# secsuite scanning itself with its own composite action (dogfood + live
+# validation of action.yml). The committed secsuite.yaml supplies the policy.
+name: security
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write # for the SARIF upload below
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full git history so Gitleaks can scan past commits
+
+      - uses: kousthubha-sky/secsuite-cli@v0.2.0
+        with:
+          severity: high
+          sarif-file: secsuite.sarif
+
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always() # findings land in the Security tab even when the gate fails
+        with:
+          sarif_file: secsuite.sarif
