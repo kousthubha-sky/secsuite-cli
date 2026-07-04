@@ -1,0 +1,44 @@
+name: secsuite
+description: Stack-aware security scan gate - Semgrep, Trivy, and Gitleaks in one normalized report with CI exit codes.
+branding:
+  icon: shield
+  color: purple
+
+# Requires an Ubuntu runner and a prior actions/checkout step (use
+# fetch-depth: 0 so Gitleaks can scan git history).
+inputs:
+  path:
+    description: Directory to scan
+    default: "."
+  severity:
+    description: Minimum severity that fails the job (critical|high|medium|low|info)
+    default: high
+  sarif-file:
+    description: If set, write merged findings as SARIF here (upload with github/codeql-action/upload-sarif)
+    default: ""
+  baseline:
+    description: Set to "false" to ignore a committed .secsuite-baseline.json
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    - name: Install scanners
+      shell: bash
+      run: |
+        pipx install semgrep
+        curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
+        curl -sfL https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz | tar -xz -C /tmp gitleaks
+        sudo mv /tmp/gitleaks /usr/local/bin/
+
+    - name: Run secsuite
+      shell: bash
+      run: |
+        ARGS="scan ${{ inputs.path }} --severity ${{ inputs.severity }}"
+        if [ -n "${{ inputs.sarif-file }}" ]; then ARGS="$ARGS --sarif ${{ inputs.sarif-file }}"; fi
+        if [ "${{ inputs.baseline }}" = "false" ]; then ARGS="$ARGS --no-baseline"; fi
+        npx secsuite@latest $ARGS

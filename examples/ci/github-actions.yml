@@ -16,35 +16,24 @@ on:
 jobs:
   security:
     runs-on: ubuntu-latest
+    permissions:
+      security-events: write # for the SARIF upload below
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # full git history so Gitleaks can scan past commits
 
-      - uses: actions/setup-node@v4
+      # One line: installs Node + the scanners and runs the gate.
+      - uses: kousthubha-sky/secsuite-cli@v0.2.0
         with:
-          node-version: 22
+          severity: high
+          sarif-file: secsuite.sarif
 
-      # Install the scanners you want secsuite to run. Drop any you don't need -
-      # secsuite warns-and-skips whatever is missing rather than failing.
-      - name: Install scanners
-        run: |
-          pipx install semgrep
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
-          curl -sfL https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz | tar -xz -C /tmp gitleaks
-          sudo mv /tmp/gitleaks /usr/local/bin/
-
-      # One run: the console output fails the job on high+ (the gate), while
-      # --json writes EVERY finding (all severities) for the artifact below.
-      - name: secsuite security gate
-        run: npx secsuite@latest scan . --severity high --json secsuite-findings.json
-
-      - name: Upload full findings report
-        if: always() # keep the report even when the gate fails
-        uses: actions/upload-artifact@v4
+      # Findings land in the repo's Security tab and as inline PR annotations.
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always() # upload even when the gate fails
         with:
-          name: secsuite-findings
-          path: secsuite-findings.json
+          sarif_file: secsuite.sarif
 
   deploy:
     needs: security # only runs if the security gate passed
@@ -54,11 +43,24 @@ jobs:
       - run: echo "Deploying - only reached when secsuite found nothing at or above the gate."
 
 # ---------------------------------------------------------------------------
-# Cleaner alternative: skip the per-scanner installs by using the bundled Docker
-# image (once you've pushed it to a registry like GHCR):
+# Manual alternative (non-Ubuntu runners, or if you want to pin scanner
+# versions yourself) - replaces the composite-action step above:
 #
+#   - uses: actions/setup-node@v4
+#     with:
+#       node-version: 22
+#   - name: Install scanners
+#     run: |
+#       pipx install semgrep
+#       curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
+#       curl -sfL https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz | tar -xz -C /tmp gitleaks
+#       sudo mv /tmp/gitleaks /usr/local/bin/
 #   - name: secsuite security gate
-#     run: docker run --rm -v "$PWD:/scan" ghcr.io/kousthubha-sky/secsuite-cli:latest scan /scan --severity high
+#     run: npx secsuite@latest scan . --severity high --json secsuite-findings.json
+#
+# Or use the bundled Docker image (once pushed to a registry like GHCR):
+#
+#   - run: docker run --rm -v "$PWD:/scan" ghcr.io/kousthubha-sky/secsuite-cli:latest scan /scan --severity high
 #
 # The dynamic (dast) lane can gate a deployed staging URL the same way:
 #

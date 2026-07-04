@@ -272,18 +272,25 @@ a non-zero exit fail the job and block the deploy.
 exists, so it fails the pipeline exactly when you want to stop a release. Set
 the bar wherever you like (`--severity high` blocks on high and critical).
 
-A copy-paste GitHub Actions workflow lives in
-[`examples/ci/github-actions.yml`](examples/ci/github-actions.yml). The key idea:
+The fastest setup is the bundled composite action (Ubuntu runners):
 
 ```yaml
 jobs:
   security:
+    runs-on: ubuntu-latest
     steps:
-      - run: npx secsuite@latest scan . --severity high   # exit 1 fails the job
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: kousthubha-sky/secsuite-cli@v0.2.0
+        with:
+          severity: high
   deploy:
-    needs: security   # deploy only runs if the security gate passed
-    ...
+    needs: security # deploy only runs if the security gate passed
 ```
+
+A full copy-paste workflow (with SARIF upload and a manual-install variant for
+non-Ubuntu runners) lives in
+[`examples/ci/github-actions.yml`](examples/ci/github-actions.yml).
 
 Because `deploy` has `needs: security`, a finding at or above the threshold
 fails the security job and the deploy never runs. The same works for the
