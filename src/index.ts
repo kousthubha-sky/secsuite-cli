@@ -6,6 +6,7 @@ import { findingsToSarif } from "./sarif-export.js";
 import { loadConfig } from "./config.js";
 import { runStaticPipeline } from "./pipeline.js";
 import { writeBaseline, loadBaselineIds, splitByBaseline, BASELINE_FILENAME } from "./baseline.js";
+import { runDoctor } from "./doctor.js";
 import { adaptZap } from "./adapters/zap.js";
 import { runZapScan } from "./dast.js";
 import { dedupeFindings } from "./dedupe.js";
@@ -134,6 +135,13 @@ program
       `[secsuite] baseline written: ${findings.length} finding(s) accepted in ${baselinePath}.\n` +
         `Commit this file; \`secsuite scan\` now reports only new findings. Line shifts re-surface a finding as new.`
     );
+  });
+
+program
+  .command("doctor")
+  .description("Check that Node, the scanners, and Docker are installed and visible.")
+  .action(async () => {
+    await runDoctor();
   });
 
 program

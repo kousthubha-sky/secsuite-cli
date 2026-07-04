@@ -71,6 +71,9 @@ Node.js >= 22.5 is required to run `secsuite` itself. The `dast` command
 additionally needs Docker running (it pulls and runs the official
 `zaproxy/zap-stable` image); the static `scan` command does not.
 
+Run `secsuite doctor` to check what is installed and get per-platform install
+hints for anything missing.
+
 ## Install
 
 ### Docker (bundles all the static scanners)
