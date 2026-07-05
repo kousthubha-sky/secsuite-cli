@@ -40,24 +40,64 @@ function buildCommand(tool: ToolName, targetDir: string, sarifPath: string, stac
   }
 }
 
+// Live progress so a long scan never looks stuck. Everything goes to stderr
+// (stdout is reserved for the report). On a TTY a single line ticks with
+// elapsed time and what is still running; in CI it degrades to plain
+// start/finish lines.
+function startProgress(tools: ToolName[]) {
+  const pending = new Set<ToolName>(tools);
+  const started = Date.now();
+  const isTTY = process.stderr.isTTY === true;
+  console.error(`[secsuite] running: ${tools.join(", ")}`);
+
+  const clearLine = () => {
+    if (isTTY) process.stderr.write("\r\x1b[2K");
+  };
+  const timer = isTTY
+    ? setInterval(() => {
+        const secs = Math.round((Date.now() - started) / 1000);
+        process.stderr.write(`\r[secsuite] scanning... ${secs}s (waiting on: ${[...pending].join(", ")})`);
+      }, 1000)
+    : undefined;
+
+  return {
+    done(tool: ToolName, ran: boolean) {
+      pending.delete(tool);
+      clearLine();
+      const secs = ((Date.now() - started) / 1000).toFixed(1);
+      console.error(`[secsuite] ${tool} ${ran ? "finished" : "skipped"} (${secs}s)`);
+    },
+    stop() {
+      if (timer) clearInterval(timer);
+      clearLine();
+    },
+  };
+}
+
 export async function runScanners(
   scanners: ToolName[],
   targetDir: string,
   stack: StackInfo
 ): Promise<ToolRunResult[]> {
   const tmpDir = mkdtempSync(path.join(tmpdir(), "secsuite-"));
+  const progress = startProgress(scanners);
 
   // Scanners are independent processes; run them concurrently. Promise.all
   // preserves input order. Each task buffers its own log lines and flushes
   // them on completion so concurrent output never interleaves mid-message.
-  return Promise.all(
-    scanners.map(async (tool): Promise<ToolRunResult> => {
-      const log: string[] = [];
-      const result = await runOne(tool, targetDir, stack, tmpDir, log);
-      for (const line of log) console.warn(line);
-      return result;
-    })
-  );
+  try {
+    return await Promise.all(
+      scanners.map(async (tool): Promise<ToolRunResult> => {
+        const log: string[] = [];
+        const result = await runOne(tool, targetDir, stack, tmpDir, log);
+        progress.done(tool, result.ran);
+        for (const line of log) console.warn(line);
+        return result;
+      })
+    );
+  } finally {
+    progress.stop();
+  }
 }
 
 async function runOne(

@@ -52,7 +52,24 @@ export async function runZapScan(
 
   // stderr, not stdout: stdout is reserved for the report (or `--json -`).
   console.error(`[secsuite] starting ZAP (${script}) against ${target} - first run pulls the image, this can take a few minutes.`);
-  const res = await execa("docker", args, { reject: false });
+
+  // Elapsed ticker (TTY only) so a minutes-long ZAP run never looks stuck.
+  const started = Date.now();
+  const isTTY = process.stderr.isTTY === true;
+  const timer = isTTY
+    ? setInterval(() => {
+        process.stderr.write(`\r[secsuite] ZAP running... ${Math.round((Date.now() - started) / 1000)}s`);
+      }, 1000)
+    : undefined;
+
+  let res;
+  try {
+    res = await execa("docker", args, { reject: false });
+  } finally {
+    if (timer) clearInterval(timer);
+    if (isTTY) process.stderr.write("\r\x1b[2K");
+    console.error(`[secsuite] ZAP finished (${((Date.now() - started) / 1000).toFixed(1)}s)`);
+  }
 
   // ZAP exits nonzero when it finds issues (1) or fails (2/3); trust the report
   // file over the exit code, same as the static scanners.
