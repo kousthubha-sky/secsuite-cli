@@ -31,8 +31,10 @@ export function loadConfig(configPath: string | undefined, targetDir: string): C
 export function isIgnored(relFile: string, ignorePaths: string[]): boolean {
   const normalized = relFile.split(path.sep).join("/");
   return ignorePaths.some((pattern) => {
-    // "dir/" means "everything under dir" - turn into a recursive glob.
-    const glob = pattern.endsWith("/") ? `${pattern}**` : pattern;
+    // "dir/" means "everything under any dir/ at ANY depth" - a scan started
+    // one level above the repo (paths like "k-p/node_modules/x") must still
+    // match. `**/` also matches zero segments, so root-level dirs match too.
+    const glob = pattern.endsWith("/") ? `**/${pattern}**` : pattern;
     return path.matchesGlob(normalized, glob);
   });
 }

@@ -33,6 +33,23 @@ export interface Config {
 export const DEFAULT_CONFIG: Config = {
   severityThreshold: "medium",
   ignore: {
-    paths: ["tests/", "**/migrations/**", "node_modules/", ".venv/"],
+    paths: [
+      "tests/",
+      "**/migrations/**",
+      // dependency dirs
+      "node_modules/",
+      ".venv/",
+      "vendor/",
+      // build output - generated bundles trip SAST/secret rules constantly
+      // (e.g. webpack eval() shims, Next.js action hashes) and their real
+      // source is scanned anyway
+      ".next/",
+      ".nuxt/",
+      "dist/",
+      "build/",
+      "out/",
+      "target/",
+      "coverage/",
+    ],
   },
 };
