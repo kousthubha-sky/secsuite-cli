@@ -37,7 +37,7 @@ npm i -g secsuite     # or: pnpm add -g secsuite / bun add -g secsuite / npx sec
 **Docker** (all static scanners bundled, nothing else to install):
 
 ```bash
-docker run --rm -v "$PWD:/scan" kousthubhaone/secsuite-cli:0.2.0 scan /scan
+docker run --rm -v "$PWD:/scan" kousthubhaone/secsuite-cli:latest scan /scan
 ```
 
 Requirements: Node.js >= 22.5 for the npm install.
