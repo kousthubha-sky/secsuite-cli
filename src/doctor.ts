@@ -61,7 +61,8 @@ export async function runDoctor(): Promise<void> {
     ...(await Promise.all([
       checkBinary("semgrep", ["--version"]),
       checkBinary("trivy", ["--version"]),
-      checkBinary("gitleaks", ["--version"]),
+      // gitleaks has no --version flag, only a `version` subcommand
+      checkBinary("gitleaks", ["version"]),
       checkBinary("docker", ["info"]),
     ])),
   ];
@@ -80,7 +81,7 @@ export async function runStatus(version: string): Promise<void> {
   const scanners = await Promise.all([
     checkBinary("semgrep", ["--version"]),
     checkBinary("trivy", ["--version"]),
-    checkBinary("gitleaks", ["--version"]),
+    checkBinary("gitleaks", ["version"]),
   ]);
 
   console.log(`secsuite ${version} - stack-aware security scans`);

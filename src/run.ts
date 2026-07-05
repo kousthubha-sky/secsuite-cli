@@ -13,7 +13,9 @@ export interface ToolRunResult {
 }
 
 async function isAvailable(bin: string): Promise<boolean> {
-  const res = await execa(bin, ["--version"], { reject: false });
+  // gitleaks has no --version flag, only a `version` subcommand - probing
+  // with --version made every scan silently skip the gitleaks lane.
+  const res = await execa(bin, [bin === "gitleaks" ? "version" : "--version"], { reject: false });
   return res.exitCode === 0;
 }
 
