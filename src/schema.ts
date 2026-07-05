@@ -36,13 +36,18 @@ export const DEFAULT_CONFIG: Config = {
     paths: [
       "tests/",
       "**/migrations/**",
-      // dependency dirs
+      // dependency dirs (in-repo installs; deps themselves are CVE-checked
+      // via lockfiles regardless of these ignores)
       "node_modules/",
       ".venv/",
+      "venv/",
       "vendor/",
-      // build output - generated bundles trip SAST/secret rules constantly
+      "Pods/",
+      "deps/",
+      // build output - generated files trip SAST/secret rules constantly
       // (e.g. webpack eval() shims, Next.js action hashes) and their real
-      // source is scanned anyway
+      // source is scanned anyway. Covers JS, Rust/Maven (target/), .NET
+      // (obj/), Elixir (_build/), Flutter (.dart_tool/), Gradle, Terraform.
       ".next/",
       ".nuxt/",
       "dist/",
@@ -50,6 +55,12 @@ export const DEFAULT_CONFIG: Config = {
       "out/",
       "target/",
       "coverage/",
+      "__pycache__/",
+      ".gradle/",
+      "obj/",
+      "_build/",
+      ".dart_tool/",
+      ".terraform/",
     ],
   },
 };
