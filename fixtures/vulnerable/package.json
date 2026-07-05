@@ -4,7 +4,7 @@
   "private": true,
   "description": "Intentionally vulnerable fixture for secsuite - do not use these dependency versions in a real project.",
   "dependencies": {
-    "lodash": "4.17.4",
+    "lodash": "4.18.1",
     "minimist": "0.0.8"
   }
 }
