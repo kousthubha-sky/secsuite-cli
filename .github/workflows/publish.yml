@@ -1,0 +1,32 @@
+name: publish
+
+# Publish to npm when a version tag is pushed. Pairs with the existing
+# release flow: `npm version patch` bumps package.json and tags the same
+# commit, then `git push origin vX.Y.Z` triggers this.
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # OIDC token for npm trusted publishing + provenance
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      # Trusted publishing needs npm >= 11.5.1; Node 22 ships npm 10.
+      - run: npm install -g npm@latest
+
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+
+      # No NODE_AUTH_TOKEN: auth comes from the OIDC id-token above, once
+      # this repo+workflow is registered as a trusted publisher on npmjs.com.
+      - run: npm publish --provenance --access public
