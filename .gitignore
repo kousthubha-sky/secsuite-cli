@@ -3,5 +3,13 @@ dist/
 *.sarif
 out.json
 
+# Go build output
+/secsuite
+/secsuite.exe
+
+# Git Bash crash artifacts
+*.stackdump
+
 # internal planning docs - kept local, not published
 docs/superpowers/
+.lavish/
