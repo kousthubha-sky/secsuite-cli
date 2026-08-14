@@ -2,7 +2,11 @@
 // execution, result normalization, deduplication, and reporting.
 package secsuite
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+)
 
 // Severity is a normalized severity level. Each adapter maps its scanner's own
 // vocabulary onto these five values, so nothing past the adapter boundary has
@@ -22,15 +26,31 @@ const (
 	SeverityInfo     Severity = "info"
 )
 
-// severityOrder ranks each severity, most severe first. Unexported (lowercase)
-// so no other package can reach in and mutate it.
-var severityOrder = map[Severity]int{
-	SeverityCritical: 0,
-	SeverityHigh:     1,
-	SeverityMedium:   2,
-	SeverityLow:      3,
-	SeverityInfo:     4,
+// allSeverities lists every severity, most severe first. The report and the
+// counts line range over this slice rather than over severityOrder, because a
+// Go map has no iteration order at all - the runtime deliberately randomizes
+// it, so ranging a map would shuffle the report sections on every run.
+var allSeverities = []Severity{
+	SeverityCritical,
+	SeverityHigh,
+	SeverityMedium,
+	SeverityLow,
+	SeverityInfo,
 }
+
+// severityOrder ranks each severity, most severe first. Derived from
+// allSeverities so the two can never drift apart. Unexported (lowercase) so no
+// other package can reach in and mutate it.
+//
+// The `func() T { ... }()` form is an immediately-invoked function used to
+// build a package-level value that needs more than one expression.
+var severityOrder = func() map[Severity]int {
+	order := make(map[Severity]int, len(allSeverities))
+	for rank, severity := range allSeverities {
+		order[severity] = rank
+	}
+	return order
+}()
 
 // Rank returns the sort position of s, where lower means more severe.
 //
@@ -47,6 +67,21 @@ func (s Severity) Rank() int {
 		return rank
 	}
 	return len(severityOrder)
+}
+
+// ParseSeverity validates a severity string coming from a --severity flag or a
+// config file. This is the runtime check that replaces TypeScript's union type:
+// the compiler cannot reject Severity("banana") here, so something has to.
+func ParseSeverity(s string) (Severity, error) {
+	severity := Severity(s)
+	if _, ok := severityOrder[severity]; !ok {
+		names := make([]string, len(allSeverities))
+		for i, known := range allSeverities {
+			names[i] = string(known)
+		}
+		return "", fmt.Errorf("invalid severity %q, expected one of %s", s, strings.Join(names, ", "))
+	}
+	return severity, nil
 }
 
 // Category is what kind of problem a finding represents, independent of which
