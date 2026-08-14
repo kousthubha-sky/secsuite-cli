@@ -4,7 +4,7 @@ branding:
   icon: shield
   color: purple
 
-# Requires an Ubuntu runner and a prior actions/checkout step (use
+# Requires a Linux runner and a prior actions/checkout step (use
 # fetch-depth: 0 so Gitleaks can scan git history).
 inputs:
   path:
@@ -23,10 +23,6 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: actions/setup-node@v4
-      with:
-        node-version: 22
-
     - name: Install scanners
       shell: bash
       run: |
@@ -34,6 +30,33 @@ runs:
         curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
         curl -sfL https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz | tar -xz -C /tmp gitleaks
         sudo mv /tmp/gitleaks /usr/local/bin/
+
+    - name: Install secsuite
+      shell: bash
+      # secsuite is a single static binary, so this replaces what used to be a
+      # setup-node step plus `npx secsuite@latest`.
+      env:
+        # The ref this action was called with: "v0.3.0" when pinned to a tag,
+        # or a branch name when someone tracks a moving ref.
+        ACTION_REF: ${{ github.action_ref }}
+      run: |
+        set -euo pipefail
+
+        case "$(uname -m)" in
+          x86_64)          ARCH=amd64 ;;
+          aarch64 | arm64) ARCH=arm64 ;;
+          *) echo "::error::unsupported runner architecture: $(uname -m)"; exit 2 ;;
+        esac
+
+        BASE=https://github.com/kousthubha-sky/secsuite-cli/releases
+        case "$ACTION_REF" in
+          v[0-9]*) URL="$BASE/download/$ACTION_REF/secsuite_linux_${ARCH}.tar.gz" ;;
+          *)       URL="$BASE/latest/download/secsuite_linux_${ARCH}.tar.gz" ;;
+        esac
+
+        echo "installing secsuite from $URL"
+        curl -sfL "$URL" | sudo tar -xz -C /usr/local/bin secsuite
+        secsuite version
 
     - name: Run secsuite
       shell: bash
@@ -48,4 +71,4 @@ runs:
         ARGS="scan $SCAN_PATH --severity $SEVERITY"
         if [ -n "$SARIF_FILE" ]; then ARGS="$ARGS --sarif $SARIF_FILE"; fi
         if [ "$USE_BASELINE" = "false" ]; then ARGS="$ARGS --no-baseline"; fi
-        npx secsuite@latest $ARGS
+        secsuite $ARGS

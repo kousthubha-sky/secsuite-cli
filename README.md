@@ -7,8 +7,8 @@ One command runs the right security scanners for your stack and merges everythin
 [![license: MIT](https://img.shields.io/npm/l/secsuite)](LICENSE)
 
 ```bash
-npx secsuite scan .                    # scan your code, dependencies, secrets, IaC
-npx secsuite dast https://staging.app  # scan your running app (needs Docker)
+secsuite scan .                    # scan your code, dependencies, secrets, IaC
+secsuite dast https://staging.app  # scan your running app (needs Docker)
 ```
 
 secsuite detects your stack and shells out to [Semgrep](https://semgrep.dev/), [Trivy](https://trivy.dev/), [Gitleaks](https://github.com/gitleaks/gitleaks), and [OWASP ZAP](https://www.zaproxy.org/) - in parallel - then normalizes and deduplicates their findings into one report.
@@ -28,10 +28,25 @@ Works on JavaScript/TypeScript, Python, Java/Kotlin, C#/.NET, Go, Rust, PHP, and
 
 ## Install
 
-**npm** (bring your own scanners - run `secsuite doctor` to see what is missing):
+secsuite is a single static binary with no runtime to install.
+Every option below gives you the same executable - pick whichever fits your setup.
+
+**Download** (macOS, Linux, Windows - [all releases](https://github.com/kousthubha-sky/secsuite-cli/releases/latest)):
+
+```bash
+curl -sfL https://github.com/kousthubha-sky/secsuite-cli/releases/latest/download/secsuite_linux_amd64.tar.gz | sudo tar -xz -C /usr/local/bin secsuite
+```
+
+**npm** (the package ships the prebuilt binary; Node is only the launcher):
 
 ```bash
 npm i -g secsuite     # or: pnpm add -g secsuite / bun add -g secsuite / npx secsuite
+```
+
+**Go**:
+
+```bash
+go install github.com/kousthubha-sky/secsuite-cli/cmd/secsuite@latest
 ```
 
 **Docker** (all static scanners bundled, nothing else to install):
@@ -40,7 +55,8 @@ npm i -g secsuite     # or: pnpm add -g secsuite / bun add -g secsuite / npx sec
 docker run --rm -v "$PWD:/scan" kousthubhaone/secsuite-cli:latest scan /scan
 ```
 
-Requirements: Node.js >= 22.5 for the npm install.
+The scanners themselves are separate tools - run `secsuite doctor` to see what is
+missing and how to install it, or use the Docker image, which bundles them.
 The `dast` command needs Docker running; the static `scan` does not.
 Missing scanners are skipped with a warning, never a hard failure.
 

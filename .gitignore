@@ -11,6 +11,9 @@ out.json
 /secsuite
 /secsuite.exe
 
+# Release artifacts, generated at tag time by npm/build.mjs
+npm/packages/
+
 # Git Bash crash artifacts
 *.stackdump
 

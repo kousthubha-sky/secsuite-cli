@@ -23,8 +23,8 @@ jobs:
         with:
           fetch-depth: 0 # full git history so Gitleaks can scan past commits
 
-      # One line: installs Node + the scanners and runs the gate.
-      - uses: kousthubha-sky/secsuite-cli@v0.2.0
+      # One line: installs the scanners + the secsuite binary and runs the gate.
+      - uses: kousthubha-sky/secsuite-cli@v0.3.0
         with:
           severity: high
           sarif-file: secsuite.sarif
@@ -44,19 +44,19 @@ jobs:
 
 # ---------------------------------------------------------------------------
 # Manual alternative (non-Ubuntu runners, or if you want to pin scanner
-# versions yourself) - replaces the composite-action step above:
+# versions yourself) - replaces the composite-action step above. secsuite is a
+# single static binary, so there is no runtime to set up:
 #
-#   - uses: actions/setup-node@v4
-#     with:
-#       node-version: 22
 #   - name: Install scanners
 #     run: |
 #       pipx install semgrep
 #       curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
 #       curl -sfL https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz | tar -xz -C /tmp gitleaks
 #       sudo mv /tmp/gitleaks /usr/local/bin/
+#   - name: Install secsuite
+#     run: curl -sfL https://github.com/kousthubha-sky/secsuite-cli/releases/latest/download/secsuite_linux_amd64.tar.gz | sudo tar -xz -C /usr/local/bin secsuite
 #   - name: secsuite security gate
-#     run: npx secsuite@latest scan . --severity high --json secsuite-findings.json
+#     run: secsuite scan . --severity high --json secsuite-findings.json
 #
 # Or use the bundled Docker image (once pushed to a registry like GHCR):
 #
@@ -64,5 +64,5 @@ jobs:
 #
 # The dynamic (dast) lane can gate a deployed staging URL the same way:
 #
-#   - run: npx secsuite@latest dast https://staging.example.com --severity high
+#   - run: secsuite dast https://staging.example.com --severity high
 # ---------------------------------------------------------------------------
