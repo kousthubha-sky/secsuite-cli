@@ -1,5 +1,10 @@
-# secsuite scanning itself with its own composite action (dogfood + live
-# validation of action.yml). The committed secsuite.yaml supplies the policy.
+# secsuite scanning itself with the binary built from this very commit.
+#
+# This used to pin the published composite action, which meant every change was
+# gated by the last release rather than by the code under review - and a fix to
+# the scanner could not pass its own gate until after it shipped. Building from
+# source removes that circular dependency. action.yml is validated separately
+# once a release exists to pin it to.
 name: security
 
 on:
@@ -17,10 +22,21 @@ jobs:
         with:
           fetch-depth: 0 # full git history so Gitleaks can scan past commits
 
-      - uses: kousthubha-sky/secsuite-cli@v0.2.0
+      - uses: actions/setup-go@v5
         with:
-          severity: high
-          sarif-file: secsuite.sarif
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install scanners
+        run: |
+          pipx install semgrep
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
+          curl -sfL https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz | tar -xz -C /tmp gitleaks
+          sudo mv /tmp/gitleaks /usr/local/bin/
+
+      # The committed secsuite.yaml supplies the policy (threshold, ignores).
+      - name: Scan
+        run: go run ./cmd/secsuite scan . --severity high --sarif secsuite.sarif
 
       - uses: github/codeql-action/upload-sarif@v4
         if: always() # findings land in the Security tab even when the gate fails

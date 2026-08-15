@@ -181,3 +181,52 @@ func TestParseSarifResultsUnknownRuleIsZeroValue(t *testing.T) {
 		t.Errorf("rule = %+v, want the zero value", entries[0].Rule)
 	}
 }
+
+// SARIF 2.1.0 keeps suppressed results in the file and flags them, rather than
+// leaving them out. Semgrep does exactly that for `// nosemgrep` comments, so
+// dropping this check makes secsuite re-report every finding the author has
+// already reviewed and dismissed in code - which is how it failed its own
+// self-scan gate.
+func TestParseSarifResultsHonorsSuppressions(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "suppressed.sarif")
+	mustWrite(t, path, `{
+	  "runs": [{
+	    "tool": {"driver": {"rules": []}},
+	    "results": [
+	      {"ruleId": "live-no-field",
+	       "locations": [{"physicalLocation": {"artifactLocation": {"uri": "a.js"}}}]},
+	      {"ruleId": "live-empty-array", "suppressions": [],
+	       "locations": [{"physicalLocation": {"artifactLocation": {"uri": "b.js"}}}]},
+	      {"ruleId": "dropped-no-status", "suppressions": [{"kind": "inSource"}],
+	       "locations": [{"physicalLocation": {"artifactLocation": {"uri": "c.js"}}}]},
+	      {"ruleId": "dropped-accepted", "suppressions": [{"kind": "inSource", "status": "accepted"}],
+	       "locations": [{"physicalLocation": {"artifactLocation": {"uri": "d.js"}}}]},
+	      {"ruleId": "live-rejected", "suppressions": [{"kind": "inSource", "status": "rejected"}],
+	       "locations": [{"physicalLocation": {"artifactLocation": {"uri": "e.js"}}}]},
+	      {"ruleId": "live-under-review", "suppressions": [{"kind": "inSource", "status": "underReview"}],
+	       "locations": [{"physicalLocation": {"artifactLocation": {"uri": "f.js"}}}]}
+	    ]
+	  }]
+	}`)
+
+	entries, err := ParseSarifResults(path, dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var got []string
+	for _, e := range entries {
+		got = append(got, e.RuleID)
+	}
+	want := []string{"live-no-field", "live-empty-array", "live-rejected", "live-under-review"}
+
+	if len(got) != len(want) {
+		t.Fatalf("kept %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("kept[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}

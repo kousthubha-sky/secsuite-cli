@@ -86,6 +86,28 @@ type sarifResult struct {
 			} `json:"region"`
 		} `json:"physicalLocation"`
 	} `json:"locations"`
+	// SARIF 2.1.0 keeps suppressed results in the file and flags them here
+	// instead of omitting them. Semgrep emits {"kind":"inSource"} for every
+	// `// nosemgrep` comment, and Trivy does the same for its own ignore file,
+	// so without this secsuite re-reports findings the author already reviewed
+	// and dismissed in code.
+	Suppressions []struct {
+		Status string `json:"status"`
+	} `json:"suppressions"`
+}
+
+// isSuppressed reports whether the scanner marked this result as dismissed.
+//
+// Per SARIF 2.1.0 a missing status means "accepted". "underReview" and
+// "rejected" both leave the finding live, so only an accepted suppression
+// hides it.
+func (r sarifResult) isSuppressed() bool {
+	for _, s := range r.Suppressions {
+		if s.Status == "" || s.Status == "accepted" {
+			return true
+		}
+	}
+	return false
 }
 
 // ParseSarifResults reads a SARIF file and flattens every result in it.
@@ -118,6 +140,13 @@ func ParseSarifResults(sarifPath, targetDir string) ([]SarifResultEntry, error) 
 			var result sarifResult
 			if err := json.Unmarshal(rawResult, &result); err != nil {
 				continue // one malformed result must not sink the whole file
+			}
+
+			// A `// nosemgrep` in the scanned code is the author saying "I
+			// looked at this". Honor it rather than making them maintain a
+			// second suppression list in the baseline.
+			if result.isSuppressed() {
+				continue
 			}
 
 			// Indexing Locations[0] without this length check is the single
