@@ -27,6 +27,10 @@ if (!/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(version ?? "")) {
 
 // The package names use npm's spellings (process.platform / process.arch), not
 // Go's, so bin/secsuite.js can interpolate them directly with no lookup table.
+//
+// The scope is @secsuite-cli, not @secsuite: npm keeps org names and package
+// names in one namespace, so the existing `secsuite` package blocks an org of
+// the same name.
 const targets = [
   { os: "linux", cpu: "x64", goos: "linux", goarch: "amd64" },
   { os: "linux", cpu: "arm64", goos: "linux", goarch: "arm64" },
@@ -43,8 +47,8 @@ rmSync(outDir, { recursive: true, force: true });
 const optionalDependencies = {};
 
 for (const target of targets) {
-  const name = `@secsuite/cli-${target.os}-${target.cpu}`;
-  const dir = path.join(outDir, `cli-${target.os}-${target.cpu}`);
+  const name = `@secsuite-cli/${target.os}-${target.cpu}`;
+  const dir = path.join(outDir, `${target.os}-${target.cpu}`);
   const binary = target.os === "win32" ? "secsuite.exe" : "secsuite";
 
   mkdirSync(dir, { recursive: true });

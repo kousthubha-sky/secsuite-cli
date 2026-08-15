@@ -34,10 +34,10 @@
     "bin"
   ],
   "optionalDependencies": {
-    "@secsuite/cli-linux-x64": "0.3.0",
-    "@secsuite/cli-linux-arm64": "0.3.0",
-    "@secsuite/cli-darwin-x64": "0.3.0",
-    "@secsuite/cli-darwin-arm64": "0.3.0",
-    "@secsuite/cli-win32-x64": "0.3.0"
+    "@secsuite-cli/linux-x64": "0.3.0",
+    "@secsuite-cli/linux-arm64": "0.3.0",
+    "@secsuite-cli/darwin-x64": "0.3.0",
+    "@secsuite-cli/darwin-arm64": "0.3.0",
+    "@secsuite-cli/win32-x64": "0.3.0"
   }
 }

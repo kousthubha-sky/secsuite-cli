@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 "use strict";
 // The entire npm package. npm already installed exactly one of the five
-// @secsuite/cli-* optionalDependencies - the one whose "os" and "cpu" fields
+// @secsuite-cli/* optionalDependencies - the one whose "os" and "cpu" fields
 // match this machine - so the only job here is to find that binary and get out
 // of the way. Node is the doorman, not the runtime.
 const { spawnSync } = require("node:child_process");
 
-const pkg = `@secsuite/cli-${process.platform}-${process.arch}`;
+const pkg = `@secsuite-cli/${process.platform}-${process.arch}`;
 const binary = process.platform === "win32" ? "secsuite.exe" : "secsuite";
 
 let bin;

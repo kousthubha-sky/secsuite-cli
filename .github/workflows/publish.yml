@@ -12,17 +12,20 @@
 #
 # npm cannot configure a trusted publisher for a package that does not exist
 # yet - the settings page it lives on only appears once the package is on the
-# registry (npm/cli#8544). So the five @secsuite/cli-* packages cannot publish
+# registry (npm/cli#8544). So the five @secsuite-cli/* packages cannot publish
 # via OIDC on their very first run, and this job would fail with a misleading
 # 404. Bootstrap them by hand once:
 #
-#   1. Create the @secsuite org/scope on npmjs.com.
-#   2. node npm/build.mjs 0.0.0
+#   1. node npm/build.mjs 0.0.0
 #      for dir in npm/packages/*/; do npm publish "$dir" --access public; done
 #      git checkout package.json     # build.mjs rewrites the version in place
-#   3. For each of the five packages, and for secsuite itself, add a trusted
+#   2. For each of the five packages, and for secsuite itself, add a trusted
 #      publisher on npmjs.com: repo kousthubha-sky/secsuite-cli, workflow
 #      publish.yml.
+#
+# The scope is @secsuite-cli rather than @secsuite because npm keeps org names
+# and package names in a single namespace, so the existing `secsuite` package
+# blocks an org of that name.
 #
 # After that every release below runs on OIDC with no token anywhere.
 name: release
