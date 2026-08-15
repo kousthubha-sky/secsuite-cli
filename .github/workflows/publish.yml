@@ -65,8 +65,12 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
 
-      # Trusted publishing needs npm >= 11.5.1; Node 22 ships npm 10.
-      - run: npm install -g npm@latest
+      # Trusted publishing needs npm >= 11.5.1 and Node 22 ships npm 10, so npm
+      # has to be upgraded here. Pinned to the 11.x line rather than @latest:
+      # npm majors raise their Node floor (12.x already wants Node >= 22.22.2),
+      # so @latest can start refusing to install the day a new major lands and
+      # take the release down with it. 11.x needs only Node >= 22.9.
+      - run: npm install -g npm@^11
 
       - name: Build the npm packages
         run: node npm/build.mjs "${GITHUB_REF_NAME#v}"
