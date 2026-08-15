@@ -1,0 +1,4 @@
+# Developed on Windows, published from Linux CI. A CRLF shebang makes Linux try
+# to exec "node\r", which would break bin/secsuite.js for every npm user, so
+# everything text is normalized to LF regardless of anyone's core.autocrlf.
+* text=auto eol=lf

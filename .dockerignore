@@ -4,4 +4,3 @@ dist
 *.sarif
 out.json
 fixtures
-test

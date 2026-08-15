@@ -1,9 +1,8 @@
 {
   "name": "secsuite",
-  "version": "0.2.4",
+  "version": "0.3.0",
   "description": "Stack-aware, developer-first security scanning CLI. Detects your tech stack, runs the right open-source scanners, merges results into one clean report.",
   "license": "MIT",
-  "type": "module",
   "keywords": [
     "security",
     "sast",
@@ -26,26 +25,19 @@
     "url": "https://github.com/kousthubha-sky/secsuite-cli/issues"
   },
   "engines": {
-    "node": ">=22.5"
+    "node": ">=16"
   },
   "bin": {
-    "secsuite": "dist/src/index.js"
+    "secsuite": "bin/secsuite.js"
   },
   "files": [
-    "dist/src"
+    "bin"
   ],
-  "scripts": {
-    "build": "tsc",
-    "test": "node --test dist/test/*.test.js",
-    "prepublishOnly": "npm run build"
-  },
-  "dependencies": {
-    "commander": "^14.0.0",
-    "execa": "^9.5.2",
-    "yaml": "^2.6.1"
-  },
-  "devDependencies": {
-    "@types/node": "^22.10.0",
-    "typescript": "^5.7.2"
+  "optionalDependencies": {
+    "@secsuite-cli/linux-x64": "0.3.0",
+    "@secsuite-cli/linux-arm64": "0.3.0",
+    "@secsuite-cli/darwin-x64": "0.3.0",
+    "@secsuite-cli/darwin-arm64": "0.3.0",
+    "@secsuite-cli/win32-x64": "0.3.0"
   }
 }

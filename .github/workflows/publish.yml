@@ -1,32 +1,89 @@
-name: publish
+# One tag ships everything: GoReleaser cross-compiles and creates the GitHub
+# Release, then the npm launcher and its five platform packages are published
+# from the same commit.
+#
+#   git tag v0.3.0 && git push origin v0.3.0
+#
+# The filename stays publish.yml on purpose: npm trusted publishing is
+# registered against a repository + workflow filename, so renaming this file
+# breaks OIDC auth until the registration is updated on npmjs.com.
+#
+# ONE-TIME BOOTSTRAP, required before the first tag:
+#
+# npm cannot configure a trusted publisher for a package that does not exist
+# yet - the settings page it lives on only appears once the package is on the
+# registry (npm/cli#8544). So the five @secsuite-cli/* packages cannot publish
+# via OIDC on their very first run, and this job would fail with a misleading
+# 404. Bootstrap them by hand once:
+#
+#   1. node npm/build.mjs 0.0.0
+#      for dir in npm/packages/*/; do npm publish "$dir" --access public; done
+#      git checkout package.json     # build.mjs rewrites the version in place
+#   2. For each of the five packages, and for secsuite itself, add a trusted
+#      publisher on npmjs.com: repo kousthubha-sky/secsuite-cli, workflow
+#      publish.yml.
+#
+# The scope is @secsuite-cli rather than @secsuite because npm keeps org names
+# and package names in a single namespace, so the existing `secsuite` package
+# blocks an org of that name.
+#
+# After that every release below runs on OIDC with no token anywhere.
+name: release
 
-# Publish to npm when a version tag is pushed. Pairs with the existing
-# release flow: `npm version patch` bumps package.json and tags the same
-# commit, then `git push origin vX.Y.Z` triggers this.
 on:
   push:
     tags: ["v*"]
 
 jobs:
-  publish:
+  release:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write # GoReleaser creates the GitHub Release
       id-token: write # OIDC token for npm trusted publishing + provenance
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # GoReleaser builds the changelog from history
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # Never ship a tag that cannot pass its own gate.
+      - run: go test ./...
+
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # --- npm -------------------------------------------------------------
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
 
-      # Trusted publishing needs npm >= 11.5.1; Node 22 ships npm 10.
-      - run: npm install -g npm@latest
+      # Trusted publishing needs npm >= 11.5.1 and Node 22 ships npm 10, so npm
+      # has to be upgraded here. Pinned to the 11.x line rather than @latest:
+      # npm majors raise their Node floor (12.x already wants Node >= 22.22.2),
+      # so @latest can start refusing to install the day a new major lands and
+      # take the release down with it. 11.x needs only Node >= 22.9.
+      - run: npm install -g npm@^11
 
-      - run: npm ci
-      - run: npm run build
-      - run: npm test
+      - name: Build the npm packages
+        run: node npm/build.mjs "${GITHUB_REF_NAME#v}"
 
-      # No NODE_AUTH_TOKEN: auth comes from the OIDC id-token above, once
-      # this repo+workflow is registered as a trusted publisher on npmjs.com.
-      - run: npm publish --provenance --access public
+      # Order matters: the launcher declares these as optionalDependencies, so
+      # publishing it first would leave a window where `npm i secsuite`
+      # installs a launcher with no binary to launch.
+      - name: Publish platform packages
+        run: |
+          for dir in npm/packages/*/; do
+            echo "publishing $dir"
+            npm publish "$dir" --provenance --access public
+          done
+
+      - name: Publish launcher
+        run: npm publish --provenance --access public

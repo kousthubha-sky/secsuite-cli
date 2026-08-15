@@ -1,0 +1,46 @@
+# Build gate for the Go CLI. Nothing else in CI compiles or tests this code,
+# so a red run here means the binary is broken on every platform at once.
+name: go
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # gofmt exits 0 either way and just lists offenders, so the check is
+      # "did it name any files".
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "not gofmt'd:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - run: go vet ./...
+
+      # The scanners run concurrently in RunScanners, so the race detector is
+      # the point of this job, not a nicety.
+      - run: go test -race ./...
+
+      # Catch a broken cross-compile here rather than at tag time, when the
+      # release workflow is the first thing that ever tried these platforms.
+      - name: cross-compile check
+        run: |
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64; do
+            echo "building $target"
+            GOOS=${target%/*} GOARCH=${target#*/} CGO_ENABLED=0 \
+              go build -o /dev/null ./cmd/secsuite
+          done
