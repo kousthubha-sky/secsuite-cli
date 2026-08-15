@@ -7,6 +7,24 @@
 # The filename stays publish.yml on purpose: npm trusted publishing is
 # registered against a repository + workflow filename, so renaming this file
 # breaks OIDC auth until the registration is updated on npmjs.com.
+#
+# ONE-TIME BOOTSTRAP, required before the first tag:
+#
+# npm cannot configure a trusted publisher for a package that does not exist
+# yet - the settings page it lives on only appears once the package is on the
+# registry (npm/cli#8544). So the five @secsuite/cli-* packages cannot publish
+# via OIDC on their very first run, and this job would fail with a misleading
+# 404. Bootstrap them by hand once:
+#
+#   1. Create the @secsuite org/scope on npmjs.com.
+#   2. node npm/build.mjs 0.0.0
+#      for dir in npm/packages/*/; do npm publish "$dir" --access public; done
+#      git checkout package.json     # build.mjs rewrites the version in place
+#   3. For each of the five packages, and for secsuite itself, add a trusted
+#      publisher on npmjs.com: repo kousthubha-sky/secsuite-cli, workflow
+#      publish.yml.
+#
+# After that every release below runs on OIDC with no token anywhere.
 name: release
 
 on:
