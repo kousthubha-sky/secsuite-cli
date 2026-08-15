@@ -1,10 +1,9 @@
 node_modules/
 dist/
 *.sarif
-# ...except the checked-in test fixtures. Without these the test suites cannot
+# ...except the checked-in test fixtures. Without these the test suite cannot
 # run on a fresh clone, which is exactly what CI does.
 !internal/secsuite/testdata/*.sarif
-!test/fixtures/*.sarif
 out.json
 
 # Go build output
