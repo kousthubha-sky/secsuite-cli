@@ -58,6 +58,10 @@ func hintFor(name string) string {
 
 // checkBinary runs `name args...` and reports whether it worked.
 func checkBinary(name string, args ...string) CheckResult {
+	// Audited for semgrep's dangerous-exec-command: the only caller is the
+	// probe loop below, whose name/args pairs are all string literals. Nothing
+	// from the command line, the config file, or the environment reaches here.
+	// nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command
 	cmd := exec.Command(name, args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout

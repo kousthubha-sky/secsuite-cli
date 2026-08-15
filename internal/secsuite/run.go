@@ -31,6 +31,11 @@ func isAvailable(bin string) bool {
 	}
 	// A nil error means the process ran and exited 0. Both "not on PATH" and
 	// "exited nonzero" arrive as an error, which is all this needs to know.
+	//
+	// Audited for semgrep's dangerous-exec-command: bin is always a ToolName
+	// constant (runOne passes string(tool)) and arg is one of the two literals
+	// above, so no caller-supplied data reaches the command name.
+	// nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command
 	return exec.Command(bin, arg).Run() == nil
 }
 
@@ -213,6 +218,12 @@ func runOne(tool ToolName, targetDir string, stack StackInfo, tmpDir string, log
 		return ToolRunResult{Tool: tool, Ran: false, Error: err.Error()}
 	}
 
+	// Audited for semgrep's dangerous-exec-command: command is a string literal
+	// from buildCommand's switch ("semgrep", "trivy", "gitleaks"), never input.
+	// args does carry targetDir, but exec.Command passes argv straight to the
+	// OS without a shell, so a path containing ;, $() or | is one literal
+	// argument to the scanner rather than anything the shell would interpret.
+	// nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command
 	cmd := exec.Command(command, args...)
 	cmd.Dir = targetDir
 	var stderr bytes.Buffer
